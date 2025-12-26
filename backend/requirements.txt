@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+torch
+torchaudio
+demucs
+pydantic
+numpy
+python-multipart
+aiofiles
