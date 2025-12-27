@@ -19,9 +19,11 @@ async def upload_audio(file: UploadFile = File(...)):
     try:
         task_id = str(uuid.uuid4())
         
-        # Save uploaded file
+        # Save uploaded file with original filename
+        original_filename = Path(file.filename).stem  # Get filename without extension
         file_extension = Path(file.filename).suffix
-        input_path = UPLOAD_DIR / f"{task_id}{file_extension}"
+        input_filename = f"{task_id}_{original_filename}{file_extension}"
+        input_path = UPLOAD_DIR / input_filename
         output_path = OUTPUT_DIR / task_id
         
         with input_path.open("wb") as buffer:
@@ -31,6 +33,7 @@ async def upload_audio(file: UploadFile = File(...)):
         stem_paths = audio_service.process_audio(
             in_path=str(input_path),
             out_path=str(output_path),
+            original_name=original_filename,  # Pass original name
             two_stems=None,
             mp3=True,
             mp3_rate=320
@@ -41,6 +44,7 @@ async def upload_audio(file: UploadFile = File(...)):
             message="Audio processed successfully",
             data={
                 "task_id": task_id,
+                "original_filename": file.filename,
                 "stems": stem_paths
             }
         )
@@ -58,7 +62,7 @@ async def get_status(task_id: str):
     return {
         "task_id": task_id,
         "status": "completed" if stems else "processing",
-        "stems": [str(s) for s in stems]
+        "stems": [s.name for s in stems]
     }
 
 @router.get("/download/{task_id}/{filename}")

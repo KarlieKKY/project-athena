@@ -15,7 +15,7 @@ class AudioService:
         model.to(self.device)
         return model
 
-    def process_audio(self, in_path, out_path, two_stems=None, mp3=True, mp3_rate=320, float32=False, int24=False):
+    def process_audio(self, in_path, out_path, original_name, two_stems=None, mp3=True, mp3_rate=320, float32=False, int24=False):
         wav = AudioFile(in_path).read(
             streams=0,
             samplerate=self.model.samplerate,
@@ -39,7 +39,9 @@ class AudioService:
         result_paths = []
         for source, name in zip(sources, stems):
             extension = ".mp3" if mp3 else ".wav"
-            stem_path = out_path / f"{Path(in_path).stem}_{name}{extension}"
+            # Use original song name instead of task_id
+            filename = f"{original_name}_{name}{extension}"
+            stem_path = out_path / filename
             save_audio(
                 source,
                 str(stem_path),
@@ -49,7 +51,7 @@ class AudioService:
                 as_float=float32,
                 bits_per_sample=24 if int24 else None
             )
-            result_paths.append(str(stem_path))
+            result_paths.append(filename)
             print(f"Saved: {stem_path}")
         
         return result_paths
