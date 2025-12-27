@@ -14,7 +14,7 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
   const songName = original_filename.replace(/\.[^/.]+$/, ""); // Remove extension
 
   return (
-    <div className="bg-gray-800 rounded-lg p-8 shadow-xl">
+    <div className="bg-black rounded-lg p-8 shadow-xl">
       <div className="mb-6">
         <h2 className="text-2xl font-semibold">Separated Stems</h2>
         <p className="text-gray-400 mt-1">Song: {songName}</p>

@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import AudioUpload from "./components/AudioUpload/AudioUpload";
 import ResultsPanel from "./components/Results/ResultsPanel";
 import Sidebar from "./components/Sidebar/Sidebar";
 import type { AudioResponse, HistoryItem } from "./api/types";
@@ -11,6 +10,7 @@ function App() {
     useState<AudioResponse | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Load history from backend
   const loadHistory = async () => {
@@ -30,10 +30,19 @@ function App() {
     loadHistory();
   }, []);
 
-  const handleUploadComplete = (result: AudioResponse) => {
-    setSeparationResult(result);
-    // Refresh history to include the new upload
-    loadHistory();
+  const handleUpload = async (file: File) => {
+    setIsUploading(true);
+    try {
+      const result = await audioApi.uploadAudio(file);
+      setSeparationResult(result);
+      // Refresh history to include the new upload
+      loadHistory();
+    } catch (error) {
+      console.error("Upload failed:", error);
+      alert("Upload failed. Please try again.");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleSelectSong = (item: HistoryItem) => {
@@ -67,38 +76,34 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white">
+    <div className="min-h-screen bg-[#1a1a1a] text-white">
       <Sidebar
         history={history}
         currentTaskId={separationResult?.data?.task_id || null}
         onSelectSong={handleSelectSong}
         onDeleteSong={handleDeleteSong}
         onRefresh={loadHistory}
+        onUpload={handleUpload}
         isLoading={isLoadingHistory}
+        isUploading={isUploading}
       />
 
       <div className="ml-64">
         <div className="container mx-auto px-4 py-8">
           <header className="text-center mb-12">
-            <h1 className="text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
-              Project Athena
+            <h1 className="text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-pink-500 to-purple-500">
+              Stems
             </h1>
-            <p className="text-gray-400 text-lg">
-              AI-Powered Audio Source Separation
-            </p>
           </header>
 
           <div className="max-w-4xl mx-auto space-y-8">
-            <AudioUpload onUploadComplete={handleUploadComplete} />
-
             {separationResult && <ResultsPanel result={separationResult} />}
           </div>
-
-          <footer className="text-center mt-16 text-gray-500">
-            <p>Powered by Demucs & FastAPI</p>
-          </footer>
         </div>
       </div>
+      <footer className="text-center mt-16 text-gray-500">
+        <p>Powered by Demucs & FastAPI</p>
+      </footer>
     </div>
   );
 }
