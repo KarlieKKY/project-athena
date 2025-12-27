@@ -31,6 +31,17 @@ export interface AudioResponse {
   };
 }
 
+export interface HistoryItem {
+  task_id: string;
+  original_filename: string;
+  stems: string[];
+  created_at: string;
+}
+
+export interface HistoryResponse {
+  history: HistoryItem[];
+}
+
 export interface SeparationStatus {
   task_id: string;
   status: "pending" | "processing" | "completed" | "failed";

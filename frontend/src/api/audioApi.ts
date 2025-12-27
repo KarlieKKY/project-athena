@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { AudioResponse, SeparationStatus } from "./types";
+import type { AudioResponse, SeparationStatus, HistoryResponse } from "./types";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -27,6 +27,11 @@ export const audioApi = {
     return response.data;
   },
 
+  getHistory: async (): Promise<HistoryResponse> => {
+    const response = await apiClient.get<HistoryResponse>("/audio/history");
+    return response.data;
+  },
+
   getStatus: async (taskId: string): Promise<SeparationStatus> => {
     const response = await apiClient.get<SeparationStatus>(
       `/audio/status/${taskId}`
@@ -36,5 +41,9 @@ export const audioApi = {
 
   downloadStem: (taskId: string, filename: string): string => {
     return `${API_BASE_URL}/audio/download/${taskId}/${filename}`;
+  },
+
+  deleteTask: async (taskId: string): Promise<void> => {
+    await apiClient.delete(`/audio/delete/${taskId}`);
   },
 };
