@@ -32,98 +32,14 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<number | null>(null);
+  const [timelineWavesurfer, setTimelineWavesurfer] =
+    useState<WaveSurfer | null>(null);
+  const timelineWaveformRef = useRef<HTMLDivElement | null>(null);
 
   if (!result.data) return null;
 
   const { task_id, original_filename, stems } = result.data;
   const songName = original_filename.replace(/\.[^/.]+$/, "");
-
-  // Draw timeline ruler
-  const drawTimeline = () => {
-    if (!timelineCanvasRef.current || duration === 0) return;
-
-    const canvas = timelineCanvasRef.current;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const width = canvas.offsetWidth;
-    const height = 60;
-    canvas.width = width;
-    canvas.height = height;
-
-    // Clear canvas
-    ctx.fillStyle = "#1f2937";
-    ctx.fillRect(0, 0, width, height);
-
-    // Draw tick marks and labels
-    const pixelsPerSecond = width / duration;
-    const tickInterval = 10; // Show numbers every 10 seconds
-
-    ctx.strokeStyle = "#4b5563";
-    ctx.fillStyle = "#9ca3af";
-    ctx.font = "10px monospace";
-
-    for (let time = 0; time <= duration; time += tickInterval) {
-      const x = time * pixelsPerSecond;
-
-      // Draw tick mark
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, height);
-      ctx.stroke();
-
-      // Draw label
-      const minutes = Math.floor(time / 60);
-      const seconds = Math.floor(time % 60);
-      const label = `${minutes}:${seconds.toString().padStart(2, "0")}`;
-      ctx.fillText(label, x + 2, 12);
-    }
-
-    // Draw smaller tick marks every second
-    ctx.strokeStyle = "#374151";
-    for (let time = 0; time <= duration; time += 1) {
-      if (time % tickInterval !== 0) {
-        const x = time * pixelsPerSecond;
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, 20);
-        ctx.stroke();
-      }
-    }
-
-    // Draw playback cursor
-    const cursorX = currentTime * pixelsPerSecond;
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(cursorX, 0);
-    ctx.lineTo(cursorX, height);
-    ctx.stroke();
-    ctx.lineWidth = 1;
-
-    // Draw selection region
-    if (selectionStart !== null && selectionEnd !== null) {
-      const startX = selectionStart * pixelsPerSecond;
-      const endX = selectionEnd * pixelsPerSecond;
-      ctx.fillStyle = "rgba(236, 72, 153, 0.3)";
-      ctx.fillRect(startX, 0, endX - startX, height);
-
-      // Draw selection borders
-      ctx.strokeStyle = "#ec4899";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(startX, 0);
-      ctx.lineTo(startX, height);
-      ctx.moveTo(endX, 0);
-      ctx.lineTo(endX, height);
-      ctx.stroke();
-      ctx.lineWidth = 1;
-    }
-  };
-
-  useEffect(() => {
-    drawTimeline();
-  }, [duration, currentTime, selectionStart, selectionEnd]);
 
   // Initialize track structure first
   useEffect(() => {
@@ -134,6 +50,13 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
         track.wavesurfer.destroy();
       }
     });
+
+    // Destroy timeline wavesurfer
+    if (timelineWavesurfer) {
+      timelineWavesurfer.pause();
+      timelineWavesurfer.destroy();
+      setTimelineWavesurfer(null);
+    }
 
     // Reset play state when switching songs
     setIsPlaying(false);
@@ -226,6 +149,30 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
         );
 
         setIsInitialized(true);
+
+        // Initialize timeline waveform
+        if (timelineWaveformRef.current && wavesurfers[0]) {
+          const timelineWs = WaveSurfer.create({
+            container: timelineWaveformRef.current,
+            waveColor: "#4a5568",
+            progressColor: "#ec4899",
+            cursorColor: "#ffffff",
+            cursorWidth: 2,
+            barWidth: 2,
+            barGap: 1,
+            barRadius: 2,
+            height: 80,
+            normalize: true,
+            backend: "WebAudio",
+            interact: true,
+          });
+
+          await timelineWs.load(
+            audioApi.downloadStem(task_id, tracks[0].filename)
+          );
+
+          setTimelineWavesurfer(timelineWs);
+        }
       };
 
       initWaveSurfers();
@@ -268,12 +215,20 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
       }
     });
 
+    if (timelineWavesurfer) {
+      if (isPlaying) {
+        timelineWavesurfer.pause();
+      } else {
+        timelineWavesurfer.play();
+      }
+    }
+
     setIsPlaying(!isPlaying);
   };
 
-  const handleTimelineClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!timelineCanvasRef.current) return;
-    const rect = timelineCanvasRef.current.getBoundingClientRect();
+  const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!timelineWaveformRef.current || !timelineWavesurfer) return;
+    const rect = timelineWaveformRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const clickPosition = x / rect.width;
     const seekTime = clickPosition * duration;
@@ -283,12 +238,13 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
         track.wavesurfer.seekTo(clickPosition);
       }
     });
+    timelineWavesurfer.seekTo(clickPosition);
     setCurrentTime(seekTime);
   };
 
-  const handleTimelineMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!timelineCanvasRef.current) return;
-    const rect = timelineCanvasRef.current.getBoundingClientRect();
+  const handleTimelineMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!timelineWaveformRef.current) return;
+    const rect = timelineWaveformRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const clickPosition = x / rect.width;
     const time = clickPosition * duration;
@@ -299,10 +255,11 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
     setSelectionEnd(time);
   };
 
-  const handleTimelineMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDragging || !timelineCanvasRef.current || dragStart === null) return;
+  const handleTimelineMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDragging || !timelineWaveformRef.current || dragStart === null)
+      return;
 
-    const rect = timelineCanvasRef.current.getBoundingClientRect();
+    const rect = timelineWaveformRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const clickPosition = x / rect.width;
     const time = clickPosition * duration;
@@ -405,7 +362,7 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
         </div>
       </div>
 
-      {/* Timeline Section with Ruler */}
+      {/* Timeline Section with Waveform */}
       <div className="mb-6 bg-gray-900 rounded-lg border border-gray-800 p-4">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-semibold text-gray-300">Timeline</h3>
@@ -426,15 +383,10 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
             </div>
           )}
         </div>
-        <div
-          ref={timelineContainerRef}
-          className="w-full rounded overflow-hidden"
-          style={{ background: "#1f2937" }}
-        >
-          <canvas
-            ref={timelineCanvasRef}
-            className="w-full cursor-crosshair"
-            style={{ height: "60px", display: "block" }}
+        <div className="w-full rounded overflow-hidden bg-gray-800">
+          <div
+            ref={timelineWaveformRef}
+            className="w-full cursor-pointer"
             onMouseDown={handleTimelineMouseDown}
             onMouseMove={handleTimelineMouseMove}
             onMouseUp={handleTimelineMouseUp}
@@ -443,7 +395,7 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
           />
         </div>
         <p className="text-xs text-gray-500 mt-2">
-          Click and drag to select a time range • Click to seek
+          Click to seek • Drag to select time range
         </p>
       </div>
 
