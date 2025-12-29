@@ -519,8 +519,8 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
                   </button>
                 </div>
 
-                {/* Volume Control */}
-                <div className="flex items-center gap-1">
+                {/* Volume Control - Vertical Layout */}
+                <div className="flex flex-col items-center gap-1 h-20">
                   <div>
                     {track.muted || track.volume === 0 ? (
                       <VolumeX className="w-4 h-4 text-gray-400" />
@@ -536,9 +536,10 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
                     onChange={(e) =>
                       handleVolumeChange(index, parseInt(e.target.value))
                     }
-                    className="w-20 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                    className="h-16 w-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
                     style={{
-                      background: `linear-gradient(to right, #ec4899 0%, #ec4899 ${track.volume}%, #374151 ${track.volume}%, #374151 100%)`,
+                      WebkitAppearance: "slider-vertical",
+                      background: `linear-gradient(to top, #ec4899 0%, #ec4899 ${track.volume}%, #374151 ${track.volume}%, #374151 100%)`,
                     }}
                   />
                 </div>
