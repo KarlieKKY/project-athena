@@ -1,4 +1,4 @@
-import { Download, Play, Pause, Volume2, VolumeX } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import type { ReactElement } from "react";
 import WaveSurfer from "wavesurfer.js";
@@ -26,8 +26,6 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
   const [selectionStart, setSelectionStart] = useState<number | null>(null);
   const [selectionEnd, setSelectionEnd] = useState<number | null>(null);
   const waveformRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const timelineContainerRef = useRef<HTMLDivElement | null>(null);
-  const timelineCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationFrameRef = useRef<number | undefined>(undefined);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -486,16 +484,6 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
                     }}
                   />
                 </div>
-
-                {/* Download Button */}
-                <a
-                  href={audioApi.downloadStem(task_id, track.filename)}
-                  download
-                  className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
-                  title="Download"
-                >
-                  <Download className="w-4 h-4 text-gray-400" />
-                </a>
               </div>
             </div>
           </div>
