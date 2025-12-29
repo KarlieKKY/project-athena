@@ -34,6 +34,14 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
 
   // Initialize track structure first
   useEffect(() => {
+    // Stop all current tracks before switching
+    tracks.forEach((track) => {
+      if (track.wavesurfer) {
+        track.wavesurfer.pause();
+        track.wavesurfer.destroy();
+      }
+    });
+
     // Reset play state when switching songs
     setIsPlaying(false);
     setCurrentTime(0);
@@ -58,6 +66,19 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
     });
 
     setTracks(newTracks);
+
+    // Cleanup function
+    return () => {
+      newTracks.forEach((track) => {
+        if (track.wavesurfer) {
+          track.wavesurfer.pause();
+          track.wavesurfer.destroy();
+        }
+      });
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
   }, [task_id, stems]);
 
   // Initialize waveforms after DOM is ready
@@ -116,14 +137,6 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
 
     return () => {
       clearTimeout(timer);
-      tracks.forEach((track) => {
-        if (track.wavesurfer) {
-          track.wavesurfer.destroy();
-        }
-      });
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
     };
   }, [tracks, task_id, isInitialized]);
 
