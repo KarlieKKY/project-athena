@@ -82,7 +82,6 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
     });
 
     setTracks(newTracks);
-
     // Cleanup function
     return () => {
       newTracks.forEach((track) => {
@@ -104,6 +103,34 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
     // Wait for refs to be populated
     const timer = setTimeout(() => {
       const initWaveSurfers = async () => {
+        // Initialize timeline waveform first
+        let timelineWs: WaveSurfer | null = null;
+        if (timelineWaveformRef.current && tracks.length > 0) {
+          timelineWs = WaveSurfer.create({
+            container: timelineWaveformRef.current,
+            waveColor: "#4a5568",
+            progressColor: "#ec4899",
+            cursorColor: "#ffffff",
+            cursorWidth: 2,
+            barWidth: 2,
+            barGap: 1,
+            barRadius: 2,
+            height: 80,
+            normalize: true,
+            backend: "WebAudio",
+            interact: true,
+          });
+
+          await timelineWs.load(
+            audioApi.downloadStem(task_id, tracks[0].filename)
+          );
+
+          // Mute timeline so it doesn't play audio, only displays waveform
+          timelineWs.setVolume(0);
+
+          setTimelineWavesurfer(timelineWs);
+        }
+
         const wavesurfers = await Promise.all(
           tracks.map(async (track, index) => {
             if (!waveformRefs.current[index]) return null;
@@ -147,30 +174,6 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
         );
 
         setIsInitialized(true);
-
-        // Initialize timeline waveform
-        if (timelineWaveformRef.current && wavesurfers[0]) {
-          const timelineWs = WaveSurfer.create({
-            container: timelineWaveformRef.current,
-            waveColor: "#4a5568",
-            progressColor: "#ec4899",
-            cursorColor: "#ffffff",
-            cursorWidth: 2,
-            barWidth: 2,
-            barGap: 1,
-            barRadius: 2,
-            height: 80,
-            normalize: true,
-            backend: "WebAudio",
-            interact: true,
-          });
-
-          await timelineWs.load(
-            audioApi.downloadStem(task_id, tracks[0].filename)
-          );
-
-          setTimelineWavesurfer(timelineWs);
-        }
       };
 
       initWaveSurfers();
@@ -214,6 +217,7 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
     });
 
     if (timelineWavesurfer) {
+      timelineWavesurfer.setVolume(0);
       if (isPlaying) {
         timelineWavesurfer.pause();
       } else {
@@ -279,45 +283,83 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
   const handleVolumeChange = (index: number, volume: number) => {
     const newTracks = [...tracks];
     newTracks[index].volume = volume;
+
+    const hasSolo = newTracks.some((t) => t.solo);
+
     if (newTracks[index].wavesurfer) {
-      newTracks[index].wavesurfer!.setVolume(volume / 100);
+      let targetVolume = 0;
+
+      if (hasSolo) {
+        // If solo is active, only play solo tracks
+        targetVolume = newTracks[index].solo ? volume / 100 : 0;
+      } else {
+        // No solo active, respect mute state
+        targetVolume = newTracks[index].muted ? 0 : volume / 100;
+      }
+
+      newTracks[index].wavesurfer.setVolume(targetVolume);
     }
     setTracks(newTracks);
   };
 
   const toggleMute = (index: number) => {
-    const newTracks = tracks.map((track, i) => ({
-      ...track,
-      muted: i === index ? !track.muted : track.muted,
-      solo: false, // Clear all solo states when any mute is toggled
-    }));
+    setTracks((prevTracks) => {
+      const newTracks = prevTracks.map((track, i) => {
+        if (i === index) {
+          // For the clicked track, toggle mute and clear solo if we're muting
+          return {
+            ...track,
+            muted: !track.muted,
+            solo: track.muted ? track.solo : false, // Only clear solo if currently unmuted (about to be muted)
+          };
+        }
+        return track;
+      });
 
-    // Update volume for all tracks based on their mute state only
-    newTracks.forEach((track) => {
-      if (track.wavesurfer) {
-        track.wavesurfer.setVolume(track.muted ? 0 : track.volume / 100);
-      }
+      const hasSolo = newTracks.some((t) => t.solo);
+
+      // Apply volume changes immediately
+      newTracks.forEach((track) => {
+        if (track.wavesurfer) {
+          let targetVolume = 0;
+
+          if (hasSolo) {
+            targetVolume = track.solo ? track.volume / 100 : 0;
+          } else {
+            targetVolume = track.muted ? 0 : track.volume / 100;
+          }
+          track.wavesurfer.setVolume(targetVolume);
+        }
+      });
+
+      return newTracks;
     });
-
-    setTracks(newTracks);
   };
 
   const toggleSolo = (index: number) => {
-    const newTracks = tracks.map((track, i) => ({
-      ...track,
-      solo: i === index ? !track.solo : false, // Turn off solo for all other tracks
-      muted: false, // Clear all mute states when solo is toggled
-    }));
+    setTracks((prevTracks) => {
+      // ✅ Use functional update
+      const newTracks = prevTracks.map((track, i) => ({
+        ...track,
+        solo: i === index ? !track.solo : false,
+        muted: false,
+      }));
 
-    const hasSolo = newTracks.some((t) => t.solo);
-    newTracks.forEach((track) => {
-      if (track.wavesurfer) {
-        const shouldBeMuted = hasSolo ? !track.solo : false;
-        track.wavesurfer.setVolume(shouldBeMuted ? 0 : track.volume / 100);
-      }
+      const hasSolo = newTracks.some((t) => t.solo);
+
+      newTracks.forEach((track) => {
+        if (track.wavesurfer) {
+          const targetVolume = hasSolo
+            ? track.solo
+              ? track.volume / 100
+              : 0
+            : track.volume / 100;
+          track.wavesurfer.setVolume(targetVolume);
+        }
+      });
+
+      return newTracks;
     });
-
-    setTracks(newTracks);
   };
 
   const clearSelection = () => {
@@ -472,13 +514,13 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
 
                 {/* Volume Control */}
                 <div className="flex items-center gap-1">
-                  <button onClick={() => toggleMute(index)}>
+                  <div>
                     {track.muted || track.volume === 0 ? (
                       <VolumeX className="w-4 h-4 text-gray-400" />
                     ) : (
                       <Volume2 className="w-4 h-4 text-gray-400" />
                     )}
-                  </button>
+                  </div>
                   <input
                     type="range"
                     min="0"
