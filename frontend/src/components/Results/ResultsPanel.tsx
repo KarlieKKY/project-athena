@@ -1,5 +1,6 @@
 import { Download, Play, Pause, Volume2, VolumeX } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
+import type { ReactElement } from "react";
 import WaveSurfer from "wavesurfer.js";
 import type { AudioResponse } from "../../api/types";
 import { audioApi } from "../../api/audioApi";
@@ -23,7 +24,7 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
   const [duration, setDuration] = useState(0);
   const [tracks, setTracks] = useState<StemTrack[]>([]);
   const waveformRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const animationFrameRef = useRef<number>();
+  const animationFrameRef = useRef<number | undefined>(undefined);
   const [isInitialized, setIsInitialized] = useState(false);
 
   if (!result.data) return null;
@@ -181,9 +182,14 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
   const toggleMute = (index: number) => {
     const newTracks = [...tracks];
     newTracks[index].muted = !newTracks[index].muted;
+
     if (newTracks[index].wavesurfer) {
-      newTracks[index].wavesurfer!.setMute(newTracks[index].muted);
+      // Use setVolume instead of setMuted to keep audio in sync
+      newTracks[index].wavesurfer!.setVolume(
+        newTracks[index].muted ? 0 : newTracks[index].volume / 100
+      );
     }
+
     setTracks(newTracks);
   };
 
@@ -195,9 +201,11 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
 
     // If any track is soloed, mute all non-solo tracks
     const hasSolo = newTracks.some((t) => t.solo);
-    newTracks.forEach((track) => {
+    newTracks.forEach((track, i) => {
       if (track.wavesurfer) {
-        track.wavesurfer.setMute(hasSolo ? !track.solo : track.muted);
+        // Use setVolume instead of setMuted to keep audio in sync
+        const shouldBeMuted = hasSolo ? !track.solo : track.muted;
+        track.wavesurfer.setVolume(shouldBeMuted ? 0 : track.volume / 100);
       }
     });
 
@@ -211,7 +219,7 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
   };
 
   const getStemIcon = (stemName: string) => {
-    const icons: { [key: string]: JSX.Element } = {
+    const icons: { [key: string]: ReactElement } = {
       vocals: <span className="text-lg">🎤</span>,
       drums: <span className="text-lg">🥁</span>,
       bass: <span className="text-lg">🎸</span>,
@@ -263,7 +271,9 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
               {/* Waveform */}
               <div className="flex-1 relative">
                 <div
-                  ref={(el) => (waveformRefs.current[index] = el)}
+                  ref={(el) => {
+                    waveformRefs.current[index] = el;
+                  }}
                   className="w-full cursor-pointer"
                   onClick={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
