@@ -386,24 +386,12 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
   return (
     <div className="bg-black rounded-lg p-6 shadow-xl border border-gray-800">
       {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={togglePlay}
-            className="w-12 h-12 rounded-full bg-gradient-to-r from-pink-500 to-purple-500 flex items-center justify-center hover:opacity-80 transition-opacity flex-shrink-0"
-          >
-            {isPlaying ? (
-              <Pause className="w-6 h-6 text-white" fill="white" />
-            ) : (
-              <Play className="w-6 h-6 text-white ml-1" fill="white" />
-            )}
-          </button>
-          <div>
-            <h2 className="text-xl font-semibold text-white">{songName}</h2>
-            <p className="text-sm text-gray-500">
-              {formatTime(currentTime)} / {formatTime(duration)}
-            </p>
-          </div>
+      <div className="mb-6">
+        <div>
+          <h2 className="text-xl font-semibold text-white">{songName}</h2>
+          <p className="text-sm text-gray-500">
+            {formatTime(currentTime)} / {formatTime(duration)}
+          </p>
         </div>
       </div>
 
@@ -428,17 +416,33 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
             </div>
           )}
         </div>
-        <div className="w-full rounded overflow-hidden bg-gray-800">
-          <div
-            ref={timelineWaveformRef}
-            className="w-full cursor-pointer"
-            onMouseDown={handleTimelineMouseDown}
-            onMouseMove={handleTimelineMouseMove}
-            onMouseUp={handleTimelineMouseUp}
-            onMouseLeave={handleTimelineMouseUp}
-            onClick={handleTimelineClick}
-          />
+
+        {/* Play Button + Waveform */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={togglePlay}
+            className="w-10 h-10 rounded-full bg-gradient-to-r from-pink-500 to-purple-500 flex items-center justify-center hover:opacity-80 transition-opacity flex-shrink-0"
+          >
+            {isPlaying ? (
+              <Pause className="w-5 h-5 text-white" fill="white" />
+            ) : (
+              <Play className="w-5 h-5 text-white ml-0.5" fill="white" />
+            )}
+          </button>
+
+          <div className="flex-1 rounded overflow-hidden bg-gray-800">
+            <div
+              ref={timelineWaveformRef}
+              className="w-full cursor-pointer"
+              onMouseDown={handleTimelineMouseDown}
+              onMouseMove={handleTimelineMouseMove}
+              onMouseUp={handleTimelineMouseUp}
+              onMouseLeave={handleTimelineMouseUp}
+              onClick={handleTimelineClick}
+            />
+          </div>
         </div>
+
         <p className="text-xs text-gray-500 mt-2">
           Click to seek • Drag to select time range
         </p>
@@ -484,33 +488,36 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
 
               {/* Controls */}
               <div className="flex items-center gap-2 flex-shrink-0">
-                {/* Solo Button */}
-                <button
-                  onClick={() => toggleSolo(index)}
-                  className={`px-2 py-1 text-xs rounded font-semibold transition-colors ${
-                    track.solo
-                      ? "bg-pink-500 text-white"
-                      : tracks.some((t) => t.solo)
-                      ? "bg-gray-800 text-gray-600 hover:bg-gray-700"
-                      : "bg-gray-700 text-gray-400 hover:bg-gray-600"
-                  }`}
-                >
-                  S
-                </button>
+                {/* Solo and Mute Buttons - Vertical Layout */}
+                <div className="flex flex-col gap-1">
+                  {/* Solo Button */}
+                  <button
+                    onClick={() => toggleSolo(index)}
+                    className={`px-2 py-1 text-xs rounded font-semibold transition-colors ${
+                      track.solo
+                        ? "bg-pink-500 text-white"
+                        : tracks.some((t) => t.solo)
+                        ? "bg-gray-800 text-gray-600 hover:bg-gray-700"
+                        : "bg-gray-700 text-gray-400 hover:bg-gray-600"
+                    }`}
+                  >
+                    S
+                  </button>
 
-                {/* Mute Button */}
-                <button
-                  onClick={() => toggleMute(index)}
-                  className={`px-2 py-1 text-xs rounded font-semibold transition-colors ${
-                    track.muted
-                      ? "bg-red-500 text-white"
-                      : tracks.some((t) => t.solo)
-                      ? "bg-gray-800 text-gray-600 hover:bg-gray-700"
-                      : "bg-gray-700 text-gray-400 hover:bg-gray-600"
-                  }`}
-                >
-                  M
-                </button>
+                  {/* Mute Button */}
+                  <button
+                    onClick={() => toggleMute(index)}
+                    className={`px-2 py-1 text-xs rounded font-semibold transition-colors ${
+                      track.muted
+                        ? "bg-red-500 text-white"
+                        : tracks.some((t) => t.solo)
+                        ? "bg-gray-800 text-gray-600 hover:bg-gray-700"
+                        : "bg-gray-700 text-gray-400 hover:bg-gray-600"
+                    }`}
+                  >
+                    M
+                  </button>
+                </div>
 
                 {/* Volume Control */}
                 <div className="flex items-center gap-1">
