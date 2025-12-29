@@ -286,14 +286,18 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
   };
 
   const toggleMute = (index: number) => {
-    const newTracks = [...tracks];
-    newTracks[index].muted = !newTracks[index].muted;
+    const newTracks = tracks.map((track, i) => ({
+      ...track,
+      muted: i === index ? !track.muted : track.muted,
+      solo: false, // Clear all solo states when any mute is toggled
+    }));
 
-    if (newTracks[index].wavesurfer) {
-      newTracks[index].wavesurfer!.setVolume(
-        newTracks[index].muted ? 0 : newTracks[index].volume / 100
-      );
-    }
+    // Update volume for all tracks based on their mute state only
+    newTracks.forEach((track) => {
+      if (track.wavesurfer) {
+        track.wavesurfer.setVolume(track.muted ? 0 : track.volume / 100);
+      }
+    });
 
     setTracks(newTracks);
   };
@@ -301,13 +305,14 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
   const toggleSolo = (index: number) => {
     const newTracks = tracks.map((track, i) => ({
       ...track,
-      solo: i === index ? !track.solo : track.solo,
+      solo: i === index ? !track.solo : false, // Turn off solo for all other tracks
+      muted: false, // Clear all mute states when solo is toggled
     }));
 
     const hasSolo = newTracks.some((t) => t.solo);
-    newTracks.forEach((track, i) => {
+    newTracks.forEach((track) => {
       if (track.wavesurfer) {
-        const shouldBeMuted = hasSolo ? !track.solo : track.muted;
+        const shouldBeMuted = hasSolo ? !track.solo : false;
         track.wavesurfer.setVolume(shouldBeMuted ? 0 : track.volume / 100);
       }
     });
@@ -440,9 +445,11 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
                 {/* Solo Button */}
                 <button
                   onClick={() => toggleSolo(index)}
-                  className={`px-2 py-1 text-xs rounded font-semibold ${
+                  className={`px-2 py-1 text-xs rounded font-semibold transition-colors ${
                     track.solo
                       ? "bg-pink-500 text-white"
+                      : tracks.some((t) => t.solo)
+                      ? "bg-gray-800 text-gray-600 hover:bg-gray-700"
                       : "bg-gray-700 text-gray-400 hover:bg-gray-600"
                   }`}
                 >
@@ -452,9 +459,11 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
                 {/* Mute Button */}
                 <button
                   onClick={() => toggleMute(index)}
-                  className={`px-2 py-1 text-xs rounded font-semibold ${
+                  className={`px-2 py-1 text-xs rounded font-semibold transition-colors ${
                     track.muted
                       ? "bg-red-500 text-white"
+                      : tracks.some((t) => t.solo)
+                      ? "bg-gray-800 text-gray-600 hover:bg-gray-700"
                       : "bg-gray-700 text-gray-400 hover:bg-gray-600"
                   }`}
                 >
