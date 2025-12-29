@@ -23,14 +23,107 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [tracks, setTracks] = useState<StemTrack[]>([]);
+  const [selectionStart, setSelectionStart] = useState<number | null>(null);
+  const [selectionEnd, setSelectionEnd] = useState<number | null>(null);
   const waveformRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const timelineContainerRef = useRef<HTMLDivElement | null>(null);
+  const timelineCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationFrameRef = useRef<number | undefined>(undefined);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState<number | null>(null);
 
   if (!result.data) return null;
 
   const { task_id, original_filename, stems } = result.data;
   const songName = original_filename.replace(/\.[^/.]+$/, "");
+
+  // Draw timeline ruler
+  const drawTimeline = () => {
+    if (!timelineCanvasRef.current || duration === 0) return;
+
+    const canvas = timelineCanvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const width = canvas.offsetWidth;
+    const height = 60;
+    canvas.width = width;
+    canvas.height = height;
+
+    // Clear canvas
+    ctx.fillStyle = "#1f2937";
+    ctx.fillRect(0, 0, width, height);
+
+    // Draw tick marks and labels
+    const pixelsPerSecond = width / duration;
+    const tickInterval = 10; // Show numbers every 10 seconds
+
+    ctx.strokeStyle = "#4b5563";
+    ctx.fillStyle = "#9ca3af";
+    ctx.font = "10px monospace";
+
+    for (let time = 0; time <= duration; time += tickInterval) {
+      const x = time * pixelsPerSecond;
+
+      // Draw tick mark
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+
+      // Draw label
+      const minutes = Math.floor(time / 60);
+      const seconds = Math.floor(time % 60);
+      const label = `${minutes}:${seconds.toString().padStart(2, "0")}`;
+      ctx.fillText(label, x + 2, 12);
+    }
+
+    // Draw smaller tick marks every second
+    ctx.strokeStyle = "#374151";
+    for (let time = 0; time <= duration; time += 1) {
+      if (time % tickInterval !== 0) {
+        const x = time * pixelsPerSecond;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, 20);
+        ctx.stroke();
+      }
+    }
+
+    // Draw playback cursor
+    const cursorX = currentTime * pixelsPerSecond;
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cursorX, 0);
+    ctx.lineTo(cursorX, height);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+
+    // Draw selection region
+    if (selectionStart !== null && selectionEnd !== null) {
+      const startX = selectionStart * pixelsPerSecond;
+      const endX = selectionEnd * pixelsPerSecond;
+      ctx.fillStyle = "rgba(236, 72, 153, 0.3)";
+      ctx.fillRect(startX, 0, endX - startX, height);
+
+      // Draw selection borders
+      ctx.strokeStyle = "#ec4899";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(startX, 0);
+      ctx.lineTo(startX, height);
+      ctx.moveTo(endX, 0);
+      ctx.lineTo(endX, height);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+    }
+  };
+
+  useEffect(() => {
+    drawTimeline();
+  }, [duration, currentTime, selectionStart, selectionEnd]);
 
   // Initialize track structure first
   useEffect(() => {
@@ -47,6 +140,8 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
     setCurrentTime(0);
     setDuration(0);
     setIsInitialized(false);
+    setSelectionStart(null);
+    setSelectionEnd(null);
 
     const newTracks: StemTrack[] = stems.map((filename) => {
       const stemName =
@@ -97,6 +192,7 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
               waveColor: "#4a5568",
               progressColor: "#ec4899",
               cursorColor: "#ffffff",
+              cursorWidth: 2,
               barWidth: 2,
               barGap: 1,
               barRadius: 2,
@@ -110,7 +206,7 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
               audioApi.downloadStem(task_id, track.filename)
             );
 
-            // Set duration from first track
+            // Get duration from first track
             if (index === 0) {
               wavesurfer.on("ready", () => {
                 setDuration(wavesurfer.getDuration());
@@ -138,7 +234,7 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
     return () => {
       clearTimeout(timer);
     };
-  }, [tracks, task_id, isInitialized]);
+  }, [tracks, task_id, isInitialized, stems]);
 
   // Update current time
   useEffect(() => {
@@ -146,7 +242,8 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
       const updateTime = () => {
         const ws = tracks[0].wavesurfer;
         if (ws) {
-          setCurrentTime(ws.getCurrentTime());
+          const time = ws.getCurrentTime();
+          setCurrentTime(time);
         }
         animationFrameRef.current = requestAnimationFrame(updateTime);
       };
@@ -158,7 +255,7 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [isPlaying, tracks]);
+  }, [isPlaying, tracks, duration]);
 
   const togglePlay = () => {
     tracks.forEach((track) => {
@@ -170,17 +267,58 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
         }
       }
     });
+
     setIsPlaying(!isPlaying);
   };
 
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newTime = parseFloat(e.target.value);
-    setCurrentTime(newTime);
+  const handleTimelineClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!timelineCanvasRef.current) return;
+    const rect = timelineCanvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const clickPosition = x / rect.width;
+    const seekTime = clickPosition * duration;
+
     tracks.forEach((track) => {
       if (track.wavesurfer) {
-        track.wavesurfer.seekTo(newTime / duration);
+        track.wavesurfer.seekTo(clickPosition);
       }
     });
+    setCurrentTime(seekTime);
+  };
+
+  const handleTimelineMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!timelineCanvasRef.current) return;
+    const rect = timelineCanvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const clickPosition = x / rect.width;
+    const time = clickPosition * duration;
+
+    setIsDragging(true);
+    setDragStart(time);
+    setSelectionStart(time);
+    setSelectionEnd(time);
+  };
+
+  const handleTimelineMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDragging || !timelineCanvasRef.current || dragStart === null) return;
+
+    const rect = timelineCanvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const clickPosition = x / rect.width;
+    const time = clickPosition * duration;
+
+    if (time < dragStart) {
+      setSelectionStart(time);
+      setSelectionEnd(dragStart);
+    } else {
+      setSelectionStart(dragStart);
+      setSelectionEnd(time);
+    }
+  };
+
+  const handleTimelineMouseUp = () => {
+    setIsDragging(false);
+    setDragStart(null);
   };
 
   const handleVolumeChange = (index: number, volume: number) => {
@@ -197,7 +335,6 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
     newTracks[index].muted = !newTracks[index].muted;
 
     if (newTracks[index].wavesurfer) {
-      // Use setVolume instead of setMuted to keep audio in sync
       newTracks[index].wavesurfer!.setVolume(
         newTracks[index].muted ? 0 : newTracks[index].volume / 100
       );
@@ -212,17 +349,20 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
       solo: i === index ? !track.solo : track.solo,
     }));
 
-    // If any track is soloed, mute all non-solo tracks
     const hasSolo = newTracks.some((t) => t.solo);
     newTracks.forEach((track, i) => {
       if (track.wavesurfer) {
-        // Use setVolume instead of setMuted to keep audio in sync
         const shouldBeMuted = hasSolo ? !track.solo : track.muted;
         track.wavesurfer.setVolume(shouldBeMuted ? 0 : track.volume / 100);
       }
     });
 
     setTracks(newTracks);
+  };
+
+  const clearSelection = () => {
+    setSelectionStart(null);
+    setSelectionEnd(null);
   };
 
   const formatTime = (time: number) => {
@@ -263,6 +403,48 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Timeline Section with Ruler */}
+      <div className="mb-6 bg-gray-900 rounded-lg border border-gray-800 p-4">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-semibold text-gray-300">Timeline</h3>
+          {selectionStart !== null && selectionEnd !== null && (
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-gray-400 font-mono">
+                {formatTime(selectionStart)} → {formatTime(selectionEnd)}
+                <span className="ml-2 text-pink-400">
+                  ({formatTime(selectionEnd - selectionStart)})
+                </span>
+              </span>
+              <button
+                onClick={clearSelection}
+                className="px-3 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded text-gray-300 transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+          )}
+        </div>
+        <div
+          ref={timelineContainerRef}
+          className="w-full rounded overflow-hidden"
+          style={{ background: "#1f2937" }}
+        >
+          <canvas
+            ref={timelineCanvasRef}
+            className="w-full cursor-crosshair"
+            style={{ height: "60px", display: "block" }}
+            onMouseDown={handleTimelineMouseDown}
+            onMouseMove={handleTimelineMouseMove}
+            onMouseUp={handleTimelineMouseUp}
+            onMouseLeave={handleTimelineMouseUp}
+            onClick={handleTimelineClick}
+          />
+        </div>
+        <p className="text-xs text-gray-500 mt-2">
+          Click and drag to select a time range • Click to seek
+        </p>
       </div>
 
       {/* Stem Tracks with Waveforms */}
