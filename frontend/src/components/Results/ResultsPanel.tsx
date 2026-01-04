@@ -23,13 +23,9 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [tracks, setTracks] = useState<StemTrack[]>([]);
-  const [selectionStart, setSelectionStart] = useState<number | null>(null);
-  const [selectionEnd, setSelectionEnd] = useState<number | null>(null);
   const waveformRefs = useRef<(HTMLDivElement | null)[]>([]);
   const animationFrameRef = useRef<number | undefined>(undefined);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState<number | null>(null);
   const [timelineWavesurfer, setTimelineWavesurfer] =
     useState<WaveSurfer | null>(null);
   const timelineWaveformRef = useRef<HTMLDivElement | null>(null);
@@ -61,8 +57,6 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
     setCurrentTime(0);
     setDuration(0);
     setIsInitialized(false);
-    setSelectionStart(null);
-    setSelectionEnd(null);
 
     const newTracks: StemTrack[] = stems.map((filename) => {
       const stemName =
@@ -154,11 +148,11 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
               audioApi.downloadStem(task_id, track.filename)
             );
 
-            // Get duration from first track
+            // Get duration from first track - do it after load completes
             if (index === 0) {
-              wavesurfer.on("ready", () => {
-                setDuration(wavesurfer.getDuration());
-              });
+              const dur = wavesurfer.getDuration();
+              console.log("Setting duration from track 0:", dur);
+              setDuration(dur);
             }
 
             return wavesurfer;
@@ -244,42 +238,6 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
     setCurrentTime(seekTime);
   };
 
-  const handleTimelineMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!timelineWaveformRef.current) return;
-    const rect = timelineWaveformRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const clickPosition = x / rect.width;
-    const time = clickPosition * duration;
-
-    setIsDragging(true);
-    setDragStart(time);
-    setSelectionStart(time);
-    setSelectionEnd(time);
-  };
-
-  const handleTimelineMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDragging || !timelineWaveformRef.current || dragStart === null)
-      return;
-
-    const rect = timelineWaveformRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const clickPosition = x / rect.width;
-    const time = clickPosition * duration;
-
-    if (time < dragStart) {
-      setSelectionStart(time);
-      setSelectionEnd(dragStart);
-    } else {
-      setSelectionStart(dragStart);
-      setSelectionEnd(time);
-    }
-  };
-
-  const handleTimelineMouseUp = () => {
-    setIsDragging(false);
-    setDragStart(null);
-  };
-
   const handleVolumeChange = (index: number, volume: number) => {
     const newTracks = [...tracks];
     newTracks[index].volume = volume;
@@ -362,15 +320,26 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
     });
   };
 
-  const clearSelection = () => {
-    setSelectionStart(null);
-    setSelectionEnd(null);
-  };
-
   const formatTime = (time: number) => {
     const minutes = Math.floor(time / 60);
     const seconds = Math.floor(time % 60);
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  };
+
+  const generateTimeMarkers = () => {
+    if (duration === 0) return [];
+
+    // Determine appropriate interval based on duration
+    let interval = 10;
+    if (duration > 300) interval = 30;
+    if (duration > 600) interval = 60;
+    const markers = [];
+    for (let time = 0; time <= duration; time += interval) {
+      const position = (time / duration) * 100;
+      markers.push({ time, position });
+    }
+
+    return markers;
   };
 
   const getStemIcon = (stemName: string) => {
@@ -384,7 +353,7 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
   };
 
   return (
-    <div className="bg-black rounded-lg p-6 shadow-xl border border-gray-800">
+    <div className="bg-black rounded-lg p-6 shadow-xl">
       {/* Header */}
       <div className="mb-6">
         <div>
@@ -397,27 +366,6 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
 
       {/* Timeline Section with Waveform */}
       <div className="mb-6 bg-gray-900 rounded-lg border border-gray-800 p-4">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-semibold text-gray-300">Timeline</h3>
-          {selectionStart !== null && selectionEnd !== null && (
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-gray-400 font-mono">
-                {formatTime(selectionStart)} → {formatTime(selectionEnd)}
-                <span className="ml-2 text-pink-400">
-                  ({formatTime(selectionEnd - selectionStart)})
-                </span>
-              </span>
-              <button
-                onClick={clearSelection}
-                className="px-3 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded text-gray-300 transition-colors"
-              >
-                Clear
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Play Button + Waveform */}
         <div className="flex items-center gap-3">
           <button
             onClick={togglePlay}
@@ -430,16 +378,40 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
             )}
           </button>
 
-          <div className="flex-1 rounded overflow-hidden bg-gray-800">
+          <div className="flex-1">
+            {/* Time Ruler */}
             <div
-              ref={timelineWaveformRef}
-              className="w-full cursor-pointer"
-              onMouseDown={handleTimelineMouseDown}
-              onMouseMove={handleTimelineMouseMove}
-              onMouseUp={handleTimelineMouseUp}
-              onMouseLeave={handleTimelineMouseUp}
-              onClick={handleTimelineClick}
-            />
+              className="relative mb-2 px-2 bg-gray-800 rounded-t border-b border-gray-600"
+              style={{ height: "36px" }}
+            >
+              {duration > 0 &&
+                generateTimeMarkers().map((marker, idx) => (
+                  <div
+                    key={idx}
+                    className="absolute flex flex-col items-center pointer-events-none"
+                    style={{
+                      left: `${marker.position}%`,
+                      top: "0px",
+                      transform: "translateX(-50%)",
+                    }}
+                  >
+                    <span className="text-[10px] text-gray-300 font-mono whitespace-nowrap bg-gray-700 px-1 rounded">
+                      {formatTime(marker.time)}
+                    </span>
+
+                    <div className="w-px h-3 bg-gray-500"></div>
+                  </div>
+                ))}
+            </div>
+
+            {/* Waveform */}
+            <div className="rounded-b overflow-hidden bg-gray-800">
+              <div
+                ref={timelineWaveformRef}
+                className="w-full cursor-pointer"
+                onClick={handleTimelineClick}
+              />
+            </div>
           </div>
         </div>
 
@@ -488,9 +460,7 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
 
               {/* Controls */}
               <div className="flex items-center gap-2 flex-shrink-0">
-                {/* Solo and Mute Buttons - Vertical Layout */}
                 <div className="flex flex-col gap-1">
-                  {/* Solo Button */}
                   <button
                     onClick={() => toggleSolo(index)}
                     className={`px-2 py-1 text-xs rounded font-semibold transition-colors ${
@@ -503,8 +473,6 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
                   >
                     S
                   </button>
-
-                  {/* Mute Button */}
                   <button
                     onClick={() => toggleMute(index)}
                     className={`px-2 py-1 text-xs rounded font-semibold transition-colors ${
