@@ -96,7 +96,7 @@ function App() {
             </h1>
           </header>
 
-          <div className="max-w-4xl mx-auto space-y-8">
+          <div className="w-full mx-auto space-y-8">
             {separationResult && <ResultsPanel result={separationResult} />}
           </div>
         </div>

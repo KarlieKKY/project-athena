@@ -1,4 +1,4 @@
-import { Play, Pause, Volume2, VolumeX } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, Download } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import type { ReactElement } from "react";
 import WaveSurfer from "wavesurfer.js";
@@ -353,7 +353,7 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
   };
 
   return (
-    <div className="bg-black rounded-lg p-6 shadow-xl">
+    <div className="bg-black rounded-lg p-6 shadow-xl w-full max-w-none">
       {/* Header */}
       <div className="mb-6">
         <div>
@@ -377,6 +377,9 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
               <Play className="w-5 h-5 text-white ml-0.5" fill="white" />
             )}
           </button>
+
+          {/* Add spacing to match stem track layout */}
+          <div className="flex-shrink-0" style={{ width: "18px" }}></div>
 
           <div className="flex-1">
             {/* Time Ruler */}
@@ -412,6 +415,13 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
                 onClick={handleTimelineClick}
               />
             </div>
+          </div>
+
+          {/* Add spacing to match stem track controls width */}
+          <div className="flex-shrink-0" style={{ width: "44px" }}>
+            <button className="p-2 rounded bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:opacity-80 transition-opacity">
+              <Download className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
