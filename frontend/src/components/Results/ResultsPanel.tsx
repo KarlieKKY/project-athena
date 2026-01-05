@@ -452,6 +452,45 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
     return icons[stemName.toLowerCase()] || <span className="text-lg">🎵</span>;
   };
 
+  const handleDownload = async () => {
+    try {
+      // Determine which stems to download
+      const hasSolo = tracks.some((t) => t.solo);
+      let stemsToDownload: string[];
+
+      if (hasSolo) {
+        stemsToDownload = tracks.filter((t) => t.solo).map((t) => t.filename);
+      } else {
+        stemsToDownload = tracks.filter((t) => !t.muted).map((t) => t.filename);
+      }
+
+      if (stemsToDownload.length === 0) {
+        alert("No tracks selected for download");
+        return;
+      }
+
+      const blob = await audioApi.mixStems(task_id, stemsToDownload);
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+
+      const filename =
+        stemsToDownload.length === 1
+          ? stemsToDownload[0]
+          : `${songName}_mixed.mp3`;
+
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error("Download error:", error);
+      alert("Failed to download audio");
+    }
+  };
+
   return (
     <div className="bg-black rounded-lg p-6 shadow-xl w-full max-w-none">
       {/* Header */}
@@ -543,6 +582,7 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
 
           <div className="flex-shrink-0" style={{ width: "44px" }}>
             <button
+              onClick={handleDownload}
               className="p-2 rounded bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:opacity-80 transition-opacity"
               title="Download"
             >

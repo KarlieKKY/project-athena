@@ -46,4 +46,15 @@ export const audioApi = {
   deleteTask: async (taskId: string): Promise<void> => {
     await apiClient.delete(`/audio/delete/${taskId}`);
   },
+
+  mixStems: async (taskId: string, stemFilenames: string[]): Promise<Blob> => {
+    const response = await apiClient.post(
+      `/audio/mix/${taskId}`,
+      stemFilenames,
+      {
+        responseType: "blob",
+      }
+    );
+    return response.data;
+  },
 };

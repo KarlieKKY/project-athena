@@ -6,14 +6,17 @@ from pathlib import Path
 import shutil
 import uuid
 from datetime import datetime
+from pydub import AudioSegment
 
 router = APIRouter()
 audio_service = AudioService()
 
 UPLOAD_DIR = Path("uploads")
 OUTPUT_DIR = Path("outputs")
+TEMP_DIR = Path("temp")
 UPLOAD_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
+TEMP_DIR.mkdir(exist_ok=True)
 
 @router.post("/upload", response_model=AudioResponse)
 async def upload_audio(file: UploadFile = File(...)):
@@ -118,3 +121,81 @@ async def delete_task(task_id: str):
         return {"success": True, "message": "Task deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete task: {str(e)}")
+
+@router.post("/mix/{task_id}")
+async def mix_stems(task_id: str, stem_filenames: list[str]):
+    """
+    Mix multiple stems into a single audio file
+    
+    Args:
+        task_id: The task ID containing the stems
+        stem_filenames: List of stem filenames to mix
+    
+    Returns:
+        FileResponse with the mixed audio file
+    """
+    try:
+        output_path = OUTPUT_DIR / task_id
+        if not output_path.exists():
+            raise HTTPException(status_code=404, detail="Task not found")
+        
+        # Validate all stems exist first
+        for filename in stem_filenames:
+            file_path = output_path / filename
+            if not file_path.exists():
+                raise HTTPException(status_code=404, detail=f"Stem file not found: {filename}")
+        
+        # If only one stem, just return it
+        if len(stem_filenames) == 1:
+            file_path = output_path / stem_filenames[0]
+            return FileResponse(
+                path=file_path,
+                filename=stem_filenames[0],
+                media_type="audio/mpeg"
+            )
+        
+        # Load and mix multiple stems
+        mixed_audio = None
+        
+        for filename in stem_filenames:
+            file_path = output_path / filename
+            audio = AudioSegment.from_file(str(file_path))
+            
+            if mixed_audio is None:
+                mixed_audio = audio
+            else:
+                # Overlay the audio tracks
+                mixed_audio = mixed_audio.overlay(audio)
+        
+        # Generate output filename
+        original_name = stem_filenames[0].rsplit('_', 1)[0]
+        output_filename = f"{original_name}_mixed.mp3"
+        temp_output_path = TEMP_DIR / f"{task_id}_{output_filename}"
+        
+        # Ensure temp directory exists
+        TEMP_DIR.mkdir(exist_ok=True)
+        
+        # Export mixed audio
+        mixed_audio.export(
+            str(temp_output_path),
+            format="mp3",
+            bitrate="320k"
+        )
+        
+        # Return file and schedule cleanup
+        def cleanup():
+            try:
+                if temp_output_path.exists():
+                    temp_output_path.unlink()
+            except Exception:
+                pass
+        
+        return FileResponse(
+            path=str(temp_output_path),
+            filename=output_filename,
+            media_type="audio/mpeg",
+            background=cleanup
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to mix stems: {str(e)}")
