@@ -100,10 +100,10 @@ function App() {
             {separationResult && <ResultsPanel result={separationResult} />}
           </div>
         </div>
+        <footer className="text-center mt-16 text-gray-500">
+          <p>Powered by Demucs & FastAPI</p>
+        </footer>
       </div>
-      <footer className="text-center mt-16 text-gray-500">
-        <p>Powered by Demucs & FastAPI</p>
-      </footer>
     </div>
   );
 }

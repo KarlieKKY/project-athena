@@ -194,6 +194,20 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
         if (ws) {
           const time = ws.getCurrentTime();
           setCurrentTime(time);
+
+          // If there's a time selection and reached the end, stop playback
+          if (timeSelection && time >= timeSelection.end) {
+            tracks.forEach((track) => {
+              if (track.wavesurfer) {
+                track.wavesurfer.pause();
+              }
+            });
+            if (timelineWavesurfer) {
+              timelineWavesurfer.pause();
+            }
+            setIsPlaying(false);
+            return;
+          }
         }
         animationFrameRef.current = requestAnimationFrame(updateTime);
       };
@@ -205,29 +219,76 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [isPlaying, tracks, duration]);
+  }, [isPlaying, tracks, duration, timeSelection, timelineWavesurfer]);
 
   const togglePlay = () => {
-    tracks.forEach((track) => {
-      if (track.wavesurfer) {
+    // Check if we have a time selection
+    if (timeSelection) {
+      const isInsideSelection =
+        currentTime >= timeSelection.start && currentTime <= timeSelection.end;
+
+      if (!isPlaying) {
+        // Starting playback
+        if (!isInsideSelection) {
+          // Cursor is outside selection, seek to start of selection
+          const seekPosition = timeSelection.start / duration;
+          tracks.forEach((track) => {
+            if (track.wavesurfer) {
+              track.wavesurfer.seekTo(seekPosition);
+            }
+          });
+          if (timelineWavesurfer) {
+            timelineWavesurfer.seekTo(seekPosition);
+          }
+          setCurrentTime(timeSelection.start);
+        }
+
+        // Start playing
+        tracks.forEach((track) => {
+          if (track.wavesurfer) {
+            track.wavesurfer.play();
+          }
+        });
+        if (timelineWavesurfer) {
+          timelineWavesurfer.setVolume(0);
+          timelineWavesurfer.play();
+        }
+        setIsPlaying(true);
+      } else {
+        // Pausing playback
+        tracks.forEach((track) => {
+          if (track.wavesurfer) {
+            track.wavesurfer.pause();
+          }
+        });
+        if (timelineWavesurfer) {
+          timelineWavesurfer.pause();
+        }
+        setIsPlaying(false);
+      }
+    } else {
+      // No time selection, play/pause normally
+      tracks.forEach((track) => {
+        if (track.wavesurfer) {
+          if (isPlaying) {
+            track.wavesurfer.pause();
+          } else {
+            track.wavesurfer.play();
+          }
+        }
+      });
+
+      if (timelineWavesurfer) {
+        timelineWavesurfer.setVolume(0);
         if (isPlaying) {
-          track.wavesurfer.pause();
+          timelineWavesurfer.pause();
         } else {
-          track.wavesurfer.play();
+          timelineWavesurfer.play();
         }
       }
-    });
 
-    if (timelineWavesurfer) {
-      timelineWavesurfer.setVolume(0);
-      if (isPlaying) {
-        timelineWavesurfer.pause();
-      } else {
-        timelineWavesurfer.play();
-      }
+      setIsPlaying(!isPlaying);
     }
-
-    setIsPlaying(!isPlaying);
   };
 
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
