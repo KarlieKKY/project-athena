@@ -528,6 +528,9 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
                         t.wavesurfer.seekTo(clickPosition);
                       }
                     });
+                    if (timelineWavesurfer) {
+                      timelineWavesurfer.seekTo(clickPosition);
+                    }
                     setCurrentTime(seekTime);
                   }}
                 />
