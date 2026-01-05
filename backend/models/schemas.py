@@ -48,3 +48,8 @@ class DeviceInfo(BaseModel):
     device_name: Optional[str] = None
     pytorch_version: str
     cuda_version: Optional[str] = None
+
+class MixStemsRequest(BaseModel):
+    stem_filenames: list[str]
+    start_time: float | None = None
+    end_time: float | None = None

@@ -469,16 +469,31 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
         return;
       }
 
-      const blob = await audioApi.mixStems(task_id, stemsToDownload);
+      const blob = await audioApi.mixStems(
+        task_id,
+        stemsToDownload,
+        timeSelection || undefined
+      );
 
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
 
-      const filename =
-        stemsToDownload.length === 1
-          ? stemsToDownload[0]
-          : `${songName}_mixed.mp3`;
+      let filename: string;
+      if (timeSelection) {
+        const baseFilename =
+          stemsToDownload.length === 1
+            ? stemsToDownload[0].replace(/\.(mp3|wav)$/, "")
+            : songName;
+        filename = `${baseFilename}_selection${
+          stemsToDownload.length > 1 ? "_mixed" : ""
+        }.mp3`;
+      } else {
+        filename =
+          stemsToDownload.length === 1
+            ? stemsToDownload[0]
+            : `${songName}_mixed.mp3`;
+      }
 
       a.download = filename;
       document.body.appendChild(a);

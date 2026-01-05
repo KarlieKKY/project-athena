@@ -1,7 +1,7 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
 from services.audio_service import AudioService
-from models.schemas import AudioResponse, AudioSeparationResult
+from models.schemas import AudioResponse, MixStemsRequest
 from pathlib import Path
 import shutil
 import uuid
@@ -122,14 +122,24 @@ async def delete_task(task_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete task: {str(e)}")
 
+
+def cleanup_temp_file(file_path: Path):
+    """Background task to clean up temporary files"""
+    try:
+        if file_path.exists():
+            file_path.unlink()
+    except Exception:
+        pass
+
 @router.post("/mix/{task_id}")
-async def mix_stems(task_id: str, stem_filenames: list[str]):
+async def mix_stems(task_id: str, request: MixStemsRequest, background_tasks: BackgroundTasks):
     """
     Mix multiple stems into a single audio file
     
     Args:
         task_id: The task ID containing the stems
-        stem_filenames: List of stem filenames to mix
+        request: MixStemsRequest containing stem_filenames and optional time range
+        background_tasks: FastAPI background tasks for cleanup
     
     Returns:
         FileResponse with the mixed audio file
@@ -140,24 +150,53 @@ async def mix_stems(task_id: str, stem_filenames: list[str]):
             raise HTTPException(status_code=404, detail="Task not found")
         
         # Validate all stems exist first
-        for filename in stem_filenames:
+        for filename in request.stem_filenames:
             file_path = output_path / filename
             if not file_path.exists():
                 raise HTTPException(status_code=404, detail=f"Stem file not found: {filename}")
         
-        # If only one stem, just return it
-        if len(stem_filenames) == 1:
-            file_path = output_path / stem_filenames[0]
-            return FileResponse(
-                path=file_path,
-                filename=stem_filenames[0],
-                media_type="audio/mpeg"
-            )
+        # If only one stem, load and process it
+        if len(request.stem_filenames) == 1:
+            file_path = output_path / request.stem_filenames[0]
+            audio = AudioSegment.from_file(str(file_path))
+            
+            # Apply time selection if provided
+            if request.start_time is not None and request.end_time is not None:
+                start_ms = int(request.start_time * 1000)
+                end_ms = int(request.end_time * 1000)
+                audio = audio[start_ms:end_ms]
+                
+                # Generate output filename with time range
+                original_name = request.stem_filenames[0].rsplit('_', 1)[0]
+                output_filename = f"{original_name}_selection.mp3"
+                temp_output_path = TEMP_DIR / f"{task_id}_{output_filename}"
+                
+                TEMP_DIR.mkdir(exist_ok=True)
+                audio.export(
+                    str(temp_output_path),
+                    format="mp3",
+                    bitrate="320k"
+                )
+                
+                background_tasks.add_task(cleanup_temp_file, temp_output_path)
+                
+                return FileResponse(
+                    path=str(temp_output_path),
+                    filename=output_filename,
+                    media_type="audio/mpeg"
+                )
+            else:
+                # No time selection, return original file
+                return FileResponse(
+                    path=file_path,
+                    filename=request.stem_filenames[0],
+                    media_type="audio/mpeg"
+                )
         
         # Load and mix multiple stems
         mixed_audio = None
         
-        for filename in stem_filenames:
+        for filename in request.stem_filenames:
             file_path = output_path / filename
             audio = AudioSegment.from_file(str(file_path))
             
@@ -167,9 +206,18 @@ async def mix_stems(task_id: str, stem_filenames: list[str]):
                 # Overlay the audio tracks
                 mixed_audio = mixed_audio.overlay(audio)
         
+        # Apply time selection if provided
+        if request.start_time is not None and request.end_time is not None:
+            start_ms = int(request.start_time * 1000)
+            end_ms = int(request.end_time * 1000)
+            mixed_audio = mixed_audio[start_ms:end_ms]
+        
         # Generate output filename
-        original_name = stem_filenames[0].rsplit('_', 1)[0]
-        output_filename = f"{original_name}_mixed.mp3"
+        original_name = request.stem_filenames[0].rsplit('_', 1)[0]
+        if request.start_time is not None and request.end_time is not None:
+            output_filename = f"{original_name}_selection_mixed.mp3"
+        else:
+            output_filename = f"{original_name}_mixed.mp3"
         temp_output_path = TEMP_DIR / f"{task_id}_{output_filename}"
         
         # Ensure temp directory exists
@@ -182,19 +230,13 @@ async def mix_stems(task_id: str, stem_filenames: list[str]):
             bitrate="320k"
         )
         
-        # Return file and schedule cleanup
-        def cleanup():
-            try:
-                if temp_output_path.exists():
-                    temp_output_path.unlink()
-            except Exception:
-                pass
+        # Schedule cleanup after file is sent
+        background_tasks.add_task(cleanup_temp_file, temp_output_path)
         
         return FileResponse(
             path=str(temp_output_path),
             filename=output_filename,
-            media_type="audio/mpeg",
-            background=cleanup
+            media_type="audio/mpeg"
         )
         
     except Exception as e:
