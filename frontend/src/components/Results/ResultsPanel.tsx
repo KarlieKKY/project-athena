@@ -30,6 +30,14 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
     useState<WaveSurfer | null>(null);
   const timelineWaveformRef = useRef<HTMLDivElement | null>(null);
 
+  // Time selection state
+  const [timeSelection, setTimeSelection] = useState<{
+    start: number;
+    end: number;
+  } | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectionStart, setSelectionStart] = useState<number | null>(null);
+
   if (!result.data) return null;
 
   const { task_id, original_filename, stems } = result.data;
@@ -224,6 +232,7 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
 
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!timelineWaveformRef.current || !timelineWavesurfer) return;
+
     const rect = timelineWaveformRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const clickPosition = x / rect.width;
@@ -236,6 +245,36 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
     });
     timelineWavesurfer.seekTo(clickPosition);
     setCurrentTime(seekTime);
+  };
+
+  const handleRulerMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const clickPosition = x / rect.width;
+    const time = clickPosition * duration;
+
+    setIsSelecting(true);
+    setSelectionStart(time);
+    setTimeSelection(null);
+  };
+
+  const handleRulerMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isSelecting || selectionStart === null) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const clickPosition = Math.max(0, Math.min(1, x / rect.width));
+    const time = clickPosition * duration;
+
+    const start = Math.min(selectionStart, time);
+    const end = Math.max(selectionStart, time);
+
+    setTimeSelection({ start, end });
+  };
+
+  const handleRulerMouseUp = () => {
+    setIsSelecting(false);
+    setSelectionStart(null);
   };
 
   const handleVolumeChange = (index: number, volume: number) => {
@@ -360,6 +399,12 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
           <h2 className="text-xl font-semibold text-white">{songName}</h2>
           <p className="text-sm text-gray-500">
             {formatTime(currentTime)} / {formatTime(duration)}
+            {timeSelection && (
+              <span className="ml-2 text-pink-400">
+                • Selection: {formatTime(timeSelection.start)} -{" "}
+                {formatTime(timeSelection.end)}
+              </span>
+            )}
           </p>
         </div>
       </div>
@@ -384,9 +429,27 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
           <div className="flex-1">
             {/* Time Ruler */}
             <div
-              className="relative mb-2 px-2 bg-gray-800 rounded-t border-b border-gray-600"
+              className="relative mb-2 px-2 bg-gray-800 rounded-t border-b border-gray-600 cursor-crosshair select-none"
               style={{ height: "36px" }}
+              onMouseDown={handleRulerMouseDown}
+              onMouseMove={handleRulerMouseMove}
+              onMouseUp={handleRulerMouseUp}
+              onMouseLeave={handleRulerMouseUp}
             >
+              {/* Time selection overlay on ruler */}
+              {timeSelection && duration > 0 && (
+                <div
+                  className="absolute top-0 bottom-0 bg-pink-500 bg-opacity-40 border-l-2 border-r-2 border-pink-400 rounded"
+                  style={{
+                    left: `${(timeSelection.start / duration) * 100}%`,
+                    width: `${
+                      ((timeSelection.end - timeSelection.start) / duration) *
+                      100
+                    }%`,
+                  }}
+                />
+              )}
+
               {duration > 0 &&
                 generateTimeMarkers().map((marker, idx) => (
                   <div
@@ -408,25 +471,27 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
             </div>
 
             {/* Waveform */}
-            <div className="rounded-b overflow-hidden bg-gray-800">
+            <div className="rounded-b overflow-hidden bg-gray-800 relative">
               <div
                 ref={timelineWaveformRef}
-                className="w-full cursor-pointer"
+                className="w-full cursor-pointer select-none"
                 onClick={handleTimelineClick}
               />
             </div>
           </div>
 
-          {/* Add spacing to match stem track controls width */}
           <div className="flex-shrink-0" style={{ width: "44px" }}>
-            <button className="p-2 rounded bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:opacity-80 transition-opacity">
+            <button
+              className="p-2 rounded bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:opacity-80 transition-opacity"
+              title="Download"
+            >
               <Download className="w-4 h-4" />
             </button>
           </div>
         </div>
 
         <p className="text-xs text-gray-500 mt-2">
-          Click to seek • Drag to select time range
+          Drag on ruler to select time range • Click waveform to seek
         </p>
       </div>
 
