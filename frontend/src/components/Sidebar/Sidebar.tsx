@@ -1,4 +1,11 @@
-import { Music, History, Trash2, RefreshCw, Upload } from "lucide-react";
+import {
+  Music,
+  History,
+  Trash2,
+  RefreshCw,
+  Upload,
+  Loader2,
+} from "lucide-react";
 import type { HistoryItem } from "../../api/types";
 import { useDropzone } from "react-dropzone";
 
@@ -58,7 +65,11 @@ const Sidebar = ({
             ${isUploading ? "opacity-50 cursor-not-allowed" : ""}`}
         >
           <input {...getInputProps()} />
-          <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+          {isUploading ? (
+            <Loader2 className="w-8 h-8 mx-auto mb-2 text-pink-500 animate-spin" />
+          ) : (
+            <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+          )}
           <p className="text-sm text-gray-300 font-medium">
             {isUploading ? "Uploading..." : "Upload Song"}
           </p>
