@@ -460,13 +460,14 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
     setTracks((prevTracks) => {
       const newTracks = prevTracks.map((track, i) => {
         if (i === index) {
-          // For the clicked track, toggle mute
+          // For the clicked track, toggle mute and clear solo
           return {
             ...track,
             muted: !track.muted,
+            solo: false,
           };
         }
-        // Clear solo from all tracks when any mute is clicked
+        // Clear solo from all other tracks when any mute is clicked
         return {
           ...track,
           solo: false,
@@ -908,7 +909,9 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
                     onClick={() => !isLoading && toggleMute(index)}
                     className={isLoading ? "cursor-default" : "cursor-pointer"}
                   >
-                    {track.muted || track.volume === 0 ? (
+                    {track.muted ||
+                    track.volume === 0 ||
+                    (tracks.some((t) => t.solo) && !track.solo) ? (
                       <VolumeX
                         className={`w-4 h-4 ${
                           isLoading ? "text-gray-600" : "text-gray-400"
