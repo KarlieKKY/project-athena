@@ -7,3 +7,4 @@
 - [ ] Start && End marker pixel perfect
 - [x] Mute logo on volumn control
 - [ ] Change color theme
+- [ ] Allow GPU run DL model

@@ -1,9 +1,10 @@
-fastapi
-uvicorn
-torch
-torchaudio
-demucs
-pydantic
-numpy
-python-multipart
-aiofiles
+fastapi==0.127.1
+uvicorn==0.40.0
+torch== 2.1.2+cu121
+torchaudio==2.1.2+cu121
+demucs==4.1.0a2
+pydantic==2.12.5
+numpy==1.26.4
+python-multipart==0.0.21
+aiofiles==25.1.0
+pydub==0.25.1
