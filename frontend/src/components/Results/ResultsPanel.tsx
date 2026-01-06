@@ -396,7 +396,6 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
 
   const toggleSolo = (index: number) => {
     setTracks((prevTracks) => {
-      // ✅ Use functional update
       const newTracks = prevTracks.map((track, i) => ({
         ...track,
         solo: i === index ? !track.solo : false,
@@ -553,16 +552,48 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
             >
               {/* Time selection overlay on ruler */}
               {timeSelection && duration > 0 && (
-                <div
-                  className="absolute top-0 bottom-0 bg-pink-500 bg-opacity-40 border-l-2 border-r-2 border-pink-400 rounded"
-                  style={{
-                    left: `${(timeSelection.start / duration) * 100}%`,
-                    width: `${
-                      ((timeSelection.end - timeSelection.start) / duration) *
-                      100
-                    }%`,
-                  }}
-                />
+                <>
+                  <div
+                    className="absolute top-0 bottom-0 bg-indigo-800 bg-opacity-10 border-l-2 border-r-2 border-pink-500 rounded"
+                    style={{
+                      left: `${(timeSelection.start / duration) * 100}%`,
+                      width: `${
+                        ((timeSelection.end - timeSelection.start) / duration) *
+                        100
+                      }%`,
+                    }}
+                  />
+
+                  {/* Start marker */}
+                  <div
+                    className="absolute flex flex-col items-center pointer-events-none"
+                    style={{
+                      left: `${(timeSelection.start / duration) * 100}%`,
+                      top: "0px",
+                      transform: "translateX(-50%)",
+                    }}
+                  >
+                    <div className="flex flex-col items-center">
+                      <div className="w-3 h-2 bg-pink-500"></div>
+                      <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-t-[4px] border-l-transparent border-r-transparent border-t-pink-400"></div>
+                    </div>
+                  </div>
+
+                  {/* End marker */}
+                  <div
+                    className="absolute flex flex-col items-center pointer-events-none"
+                    style={{
+                      left: `${(timeSelection.end / duration) * 100}%`,
+                      top: "0px",
+                      transform: "translateX(-50%)",
+                    }}
+                  >
+                    <div className="flex flex-col items-center">
+                      <div className="w-3 h-2 bg-pink-500"></div>
+                      <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-t-[4px] border-l-transparent border-r-transparent border-t-pink-400"></div>
+                    </div>
+                  </div>
+                </>
               )}
 
               {duration > 0 &&
@@ -576,7 +607,7 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
                       transform: "translateX(-50%)",
                     }}
                   >
-                    <span className="text-[10px] text-gray-300 font-mono whitespace-nowrap bg-gray-700 px-1 rounded">
+                    <span className="text-[10px] text-gray-300 font-mono whitespace-nowrap">
                       {formatTime(marker.time)}
                     </span>
 
