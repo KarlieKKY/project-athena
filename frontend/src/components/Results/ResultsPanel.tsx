@@ -1,4 +1,4 @@
-import { Play, Pause, Volume2, VolumeX, Download } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, Download, Loader2 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import type { ReactElement } from "react";
 import WaveSurfer from "wavesurfer.js";
@@ -29,6 +29,7 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
   const [timelineWavesurfer, setTimelineWavesurfer] =
     useState<WaveSurfer | null>(null);
   const timelineWaveformRef = useRef<HTMLDivElement | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Time selection state
   const [timeSelection, setTimeSelection] = useState<{
@@ -112,43 +113,17 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
   useEffect(() => {
     if (tracks.length === 0 || isInitialized) return;
 
+    setIsLoading(true);
+
     // Wait for refs to be populated
     const timer = setTimeout(() => {
       const initWaveSurfers = async () => {
-        // Initialize timeline waveform first
-        let timelineWs: WaveSurfer | null = null;
-        if (timelineWaveformRef.current && tracks.length > 0) {
-          timelineWs = WaveSurfer.create({
-            container: timelineWaveformRef.current,
-            waveColor: "#4a5568",
-            progressColor: "#ec4899",
-            cursorColor: "#ffffff",
-            cursorWidth: 2,
-            barWidth: 2,
-            barGap: 1,
-            barRadius: 2,
-            height: 80,
-            normalize: true,
-            backend: "WebAudio",
-            interact: true,
-          });
-
-          await timelineWs.load(
-            audioApi.downloadStem(task_id, tracks[0].filename)
-          );
-
-          // Mute timeline so it doesn't play audio, only displays waveform
-          timelineWs.setVolume(0);
-
-          setTimelineWavesurfer(timelineWs);
-        }
-
-        const wavesurfers = await Promise.all(
-          tracks.map(async (track, index) => {
-            if (!waveformRefs.current[index]) return null;
-
-            const wavesurfer = WaveSurfer.create({
-              container: waveformRefs.current[index]!,
+        try {
+          // Initialize timeline waveform first
+          let timelineWs: WaveSurfer | null = null;
+          if (timelineWaveformRef.current && tracks.length > 0) {
+            timelineWs = WaveSurfer.create({
+              container: timelineWaveformRef.current,
               waveColor: "#4a5568",
               progressColor: "#ec4899",
               cursorColor: "#ffffff",
@@ -156,36 +131,70 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
               barWidth: 2,
               barGap: 1,
               barRadius: 2,
-              height: 60,
+              height: 80,
               normalize: true,
               backend: "WebAudio",
-              interact: false,
+              interact: true,
             });
 
-            await wavesurfer.load(
-              audioApi.downloadStem(task_id, track.filename)
+            await timelineWs.load(
+              audioApi.downloadStem(task_id, tracks[0].filename)
             );
 
-            // Get duration from first track - do it after load completes
-            if (index === 0) {
-              const dur = wavesurfer.getDuration();
-              console.log("Setting duration from track 0:", dur);
-              setDuration(dur);
-            }
+            // Mute timeline so it doesn't play audio, only displays waveform
+            timelineWs.setVolume(0);
 
-            return wavesurfer;
-          })
-        );
+            setTimelineWavesurfer(timelineWs);
+          }
 
-        // Update tracks with wavesurfer instances
-        setTracks((prevTracks) =>
-          prevTracks.map((track, index) => ({
-            ...track,
-            wavesurfer: wavesurfers[index],
-          }))
-        );
+          const wavesurfers = await Promise.all(
+            tracks.map(async (track, index) => {
+              if (!waveformRefs.current[index]) return null;
 
-        setIsInitialized(true);
+              const wavesurfer = WaveSurfer.create({
+                container: waveformRefs.current[index]!,
+                waveColor: "#4a5568",
+                progressColor: "#ec4899",
+                cursorColor: "#ffffff",
+                cursorWidth: 2,
+                barWidth: 2,
+                barGap: 1,
+                barRadius: 2,
+                height: 60,
+                normalize: true,
+                backend: "WebAudio",
+                interact: false,
+              });
+
+              await wavesurfer.load(
+                audioApi.downloadStem(task_id, track.filename)
+              );
+
+              // Get duration from first track - do it after load completes
+              if (index === 0) {
+                const dur = wavesurfer.getDuration();
+                console.log("Setting duration from track 0:", dur);
+                setDuration(dur);
+              }
+
+              return wavesurfer;
+            })
+          );
+
+          // Update tracks with wavesurfer instances
+          setTracks((prevTracks) =>
+            prevTracks.map((track, index) => ({
+              ...track,
+              wavesurfer: wavesurfers[index],
+            }))
+          );
+
+          setIsInitialized(true);
+        } catch (error) {
+          console.error("Failed to initialize waveforms:", error);
+        } finally {
+          setIsLoading(false);
+        }
       };
 
       initWaveSurfers();
@@ -282,6 +291,8 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
   ]);
 
   const togglePlay = () => {
+    if (isLoading) return;
+
     // Check if we have a time selection
     if (timeSelection) {
       const isInsideSelection =
@@ -600,12 +611,18 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
         <div>
           <h2 className="text-xl font-semibold text-white">{songName}</h2>
           <p className="text-sm text-gray-500">
-            {formatTime(currentTime)} / {formatTime(duration)}
-            {timeSelection && (
-              <span className="ml-2 text-pink-400">
-                • Selection: {formatTime(timeSelection.start)} -{" "}
-                {formatTime(timeSelection.end)}
-              </span>
+            {isLoading ? (
+              "Loading..."
+            ) : (
+              <>
+                {formatTime(currentTime)} / {formatTime(duration)}
+                {timeSelection && (
+                  <span className="ml-2 text-pink-400">
+                    • Selection: {formatTime(timeSelection.start)} -{" "}
+                    {formatTime(timeSelection.end)}
+                  </span>
+                )}
+              </>
             )}
           </p>
         </div>
@@ -617,9 +634,14 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
           <div className="flex flex-col gap-2 flex-shrink-0">
             <button
               onClick={togglePlay}
-              className="w-10 h-10 rounded-full bg-gradient-to-r from-pink-500 to-purple-500 flex items-center justify-center hover:opacity-80 transition-opacity"
+              disabled={isLoading}
+              className={`w-10 h-10 rounded-full bg-gradient-to-r from-pink-500 to-purple-500 flex items-center justify-center transition-opacity ${
+                isLoading ? "opacity-50 cursor-not-allowed" : "hover:opacity-80"
+              }`}
             >
-              {isPlaying ? (
+              {isLoading ? (
+                <Loader2 className="w-5 h-5 text-white animate-spin" />
+              ) : isPlaying ? (
                 <Pause className="w-5 h-5 text-white" fill="white" />
               ) : (
                 <Play className="w-5 h-5 text-white ml-0.5" fill="white" />
@@ -628,8 +650,11 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
 
             <button
               onClick={() => setIsRepeatEnabled(!isRepeatEnabled)}
+              disabled={isLoading}
               className={`relative w-12 h-6 rounded-full transition-colors ${
-                isRepeatEnabled
+                isLoading
+                  ? "opacity-50 cursor-not-allowed bg-gray-600"
+                  : isRepeatEnabled
                   ? "bg-gradient-to-r from-pink-500 to-purple-500"
                   : "bg-gray-600"
               }`}
@@ -657,87 +682,111 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
           <div className="flex-1">
             {/* Time Ruler */}
             <div
-              className="relative mb-2 px-2 bg-gray-800 rounded-t border-b border-gray-600 cursor-crosshair select-none"
+              className={`relative mb-2 px-2 bg-gray-800 rounded-t border-b border-gray-600 select-none ${
+                isLoading ? "cursor-default" : "cursor-crosshair"
+              }`}
               style={{ height: "36px" }}
-              onMouseDown={handleRulerMouseDown}
-              onMouseMove={handleRulerMouseMove}
-              onMouseUp={handleRulerMouseUp}
-              onMouseLeave={handleRulerMouseUp}
+              onMouseDown={isLoading ? undefined : handleRulerMouseDown}
+              onMouseMove={isLoading ? undefined : handleRulerMouseMove}
+              onMouseUp={isLoading ? undefined : handleRulerMouseUp}
+              onMouseLeave={isLoading ? undefined : handleRulerMouseUp}
             >
-              {/* Time selection overlay on ruler */}
-              {timeSelection && duration > 0 && (
+              {isLoading ? (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-xs text-gray-400 flex items-center gap-2">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Loading...
+                  </span>
+                </div>
+              ) : (
                 <>
-                  <div
-                    className="absolute top-0 bottom-0 bg-pink-500 bg-opacity-10 border-l-2 border-r-2 border-pink-400 rounded"
-                    style={{
-                      left: `${(timeSelection.start / duration) * 100}%`,
-                      width: `${
-                        ((timeSelection.end - timeSelection.start) / duration) *
-                        100
-                      }%`,
-                    }}
-                  />
+                  {/* Time selection overlay on ruler */}
+                  {timeSelection && duration > 0 && (
+                    <>
+                      <div
+                        className="absolute top-0 bottom-0 bg-pink-500 bg-opacity-10 border-l-2 border-r-2 border-pink-400 rounded"
+                        style={{
+                          left: `${(timeSelection.start / duration) * 100}%`,
+                          width: `${
+                            ((timeSelection.end - timeSelection.start) /
+                              duration) *
+                            100
+                          }%`,
+                        }}
+                      />
 
-                  {/* Start marker */}
-                  <div
-                    className="absolute flex flex-col items-center pointer-events-auto cursor-ew-resize"
-                    style={{
-                      left: `${(timeSelection.start / duration) * 100}%`,
-                      top: "0px",
-                      transform: "translateX(-50%)",
-                    }}
-                    onMouseDown={(e) => handleMarkerMouseDown("start", e)}
-                  >
-                    <div className="flex flex-col items-center">
-                      <div className="w-3 h-2 bg-pink-500"></div>
-                      <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-t-[4px] border-l-transparent border-r-transparent border-t-pink-400"></div>
-                    </div>
-                  </div>
+                      {/* Start marker */}
+                      <div
+                        className="absolute flex flex-col items-center pointer-events-auto cursor-ew-resize"
+                        style={{
+                          left: `${(timeSelection.start / duration) * 100}%`,
+                          top: "0px",
+                          transform: "translateX(-50%)",
+                        }}
+                        onMouseDown={(e) => handleMarkerMouseDown("start", e)}
+                      >
+                        <div className="flex flex-col items-center">
+                          <div className="w-3 h-2 bg-pink-500"></div>
+                          <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-t-[4px] border-l-transparent border-r-transparent border-t-pink-400"></div>
+                        </div>
+                      </div>
 
-                  {/* End marker */}
-                  <div
-                    className="absolute flex flex-col items-center pointer-events-auto cursor-ew-resize"
-                    style={{
-                      left: `${(timeSelection.end / duration) * 100}%`,
-                      top: "0px",
-                      transform: "translateX(-50%)",
-                    }}
-                    onMouseDown={(e) => handleMarkerMouseDown("end", e)}
-                  >
-                    <div className="flex flex-col items-center">
-                      <div className="w-3 h-2 bg-pink-500"></div>
-                      <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-t-[4px] border-l-transparent border-r-transparent border-t-pink-400"></div>
-                    </div>
-                  </div>
+                      {/* End marker */}
+                      <div
+                        className="absolute flex flex-col items-center pointer-events-auto cursor-ew-resize"
+                        style={{
+                          left: `${(timeSelection.end / duration) * 100}%`,
+                          top: "0px",
+                          transform: "translateX(-50%)",
+                        }}
+                        onMouseDown={(e) => handleMarkerMouseDown("end", e)}
+                      >
+                        <div className="flex flex-col items-center">
+                          <div className="w-3 h-2 bg-pink-500"></div>
+                          <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-t-[4px] border-l-transparent border-r-transparent border-t-pink-400"></div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {duration > 0 &&
+                    generateTimeMarkers().map((marker, idx) => (
+                      <div
+                        key={idx}
+                        className="absolute flex flex-col items-center pointer-events-none"
+                        style={{
+                          left: `${marker.position}%`,
+                          top: "0px",
+                          transform: "translateX(-50%)",
+                        }}
+                      >
+                        <span className="text-[10px] text-gray-300 font-mono whitespace-nowrap">
+                          {formatTime(marker.time)}
+                        </span>
+
+                        <div className="w-px h-3 bg-gray-500"></div>
+                      </div>
+                    ))}
                 </>
               )}
-
-              {duration > 0 &&
-                generateTimeMarkers().map((marker, idx) => (
-                  <div
-                    key={idx}
-                    className="absolute flex flex-col items-center pointer-events-none"
-                    style={{
-                      left: `${marker.position}%`,
-                      top: "0px",
-                      transform: "translateX(-50%)",
-                    }}
-                  >
-                    <span className="text-[10px] text-gray-300 font-mono whitespace-nowrap">
-                      {formatTime(marker.time)}
-                    </span>
-
-                    <div className="w-px h-3 bg-gray-500"></div>
-                  </div>
-                ))}
             </div>
 
             {/* Waveform */}
             <div className="rounded-b overflow-hidden bg-gray-800 relative">
+              {isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-800 z-10">
+                  <span className="text-sm text-gray-400 flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Loading...
+                  </span>
+                </div>
+              )}
               <div
                 ref={timelineWaveformRef}
-                className="w-full cursor-pointer select-none"
-                onClick={handleTimelineClick}
+                className={`w-full select-none ${
+                  isLoading ? "cursor-default" : "cursor-pointer"
+                }`}
+                onClick={isLoading ? undefined : handleTimelineClick}
               />
             </div>
           </div>
@@ -745,7 +794,10 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
           <div className="flex-shrink-0" style={{ width: "44px" }}>
             <button
               onClick={handleDownload}
-              className="p-2 rounded bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:opacity-80 transition-opacity"
+              disabled={isLoading}
+              className={`p-2 rounded bg-gradient-to-r from-pink-500 to-purple-500 text-white transition-opacity ${
+                isLoading ? "opacity-50 cursor-not-allowed" : "hover:opacity-80"
+              }`}
               title="Download"
             >
               <Download className="w-4 h-4" />
@@ -754,7 +806,9 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
         </div>
 
         <p className="text-xs text-gray-500 mt-2">
-          Drag on ruler to select time range • Click waveform to seek
+          {isLoading
+            ? "Loading audio tracks..."
+            : "Drag on ruler to select time range • Click waveform to seek"}
         </p>
       </div>
 
@@ -776,26 +830,40 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
 
               {/* Waveform */}
               <div className="flex-1 relative">
+                {isLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-gray-800 z-10 rounded">
+                    <span className="text-xs text-gray-400 flex items-center gap-2">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Loading...
+                    </span>
+                  </div>
+                )}
                 <div
                   ref={(el) => {
                     waveformRefs.current[index] = el;
                   }}
-                  className="w-full cursor-pointer"
-                  onClick={(e) => {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const x = e.clientX - rect.left;
-                    const clickPosition = x / rect.width;
-                    const seekTime = clickPosition * duration;
-                    tracks.forEach((t) => {
-                      if (t.wavesurfer) {
-                        t.wavesurfer.seekTo(clickPosition);
-                      }
-                    });
-                    if (timelineWavesurfer) {
-                      timelineWavesurfer.seekTo(clickPosition);
-                    }
-                    setCurrentTime(seekTime);
-                  }}
+                  className={`w-full ${
+                    isLoading ? "cursor-default" : "cursor-pointer"
+                  }`}
+                  onClick={
+                    isLoading
+                      ? undefined
+                      : (e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const x = e.clientX - rect.left;
+                          const clickPosition = x / rect.width;
+                          const seekTime = clickPosition * duration;
+                          tracks.forEach((t) => {
+                            if (t.wavesurfer) {
+                              t.wavesurfer.seekTo(clickPosition);
+                            }
+                          });
+                          if (timelineWavesurfer) {
+                            timelineWavesurfer.seekTo(clickPosition);
+                          }
+                          setCurrentTime(seekTime);
+                        }
+                  }
                 />
               </div>
 
@@ -804,8 +872,11 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
                 <div className="flex flex-col gap-1">
                   <button
                     onClick={() => toggleSolo(index)}
+                    disabled={isLoading}
                     className={`px-2 py-1 text-xs rounded font-semibold transition-colors ${
-                      track.solo
+                      isLoading
+                        ? "opacity-50 cursor-not-allowed bg-gray-800 text-gray-600"
+                        : track.solo
                         ? "bg-pink-500 text-white"
                         : tracks.some((t) => t.solo)
                         ? "bg-gray-800 text-gray-600 hover:bg-gray-700"
@@ -816,8 +887,11 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
                   </button>
                   <button
                     onClick={() => toggleMute(index)}
+                    disabled={isLoading}
                     className={`px-2 py-1 text-xs rounded font-semibold transition-colors ${
-                      track.muted || track.volume === 0
+                      isLoading
+                        ? "opacity-50 cursor-not-allowed bg-gray-800 text-gray-600"
+                        : track.muted || track.volume === 0
                         ? "bg-red-500 text-white"
                         : tracks.some((t) => t.solo)
                         ? "bg-gray-800 text-gray-600 hover:bg-gray-700"
@@ -831,13 +905,21 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
                 {/* Volume Control - Vertical Layout */}
                 <div className="flex flex-col items-center gap-1 h-20">
                   <div
-                    onClick={() => toggleMute(index)}
-                    className="cursor-pointer"
+                    onClick={() => !isLoading && toggleMute(index)}
+                    className={isLoading ? "cursor-default" : "cursor-pointer"}
                   >
                     {track.muted || track.volume === 0 ? (
-                      <VolumeX className="w-4 h-4 text-gray-400" />
+                      <VolumeX
+                        className={`w-4 h-4 ${
+                          isLoading ? "text-gray-600" : "text-gray-400"
+                        }`}
+                      />
                     ) : (
-                      <Volume2 className="w-4 h-4 text-gray-400" />
+                      <Volume2
+                        className={`w-4 h-4 ${
+                          isLoading ? "text-gray-600" : "text-gray-400"
+                        }`}
+                      />
                     )}
                   </div>
                   <input
@@ -848,7 +930,12 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
                     onChange={(e) =>
                       handleVolumeChange(index, parseInt(e.target.value))
                     }
-                    className="h-16 w-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                    disabled={isLoading}
+                    className={`h-16 w-1 bg-gray-700 rounded-lg appearance-none ${
+                      isLoading
+                        ? "cursor-not-allowed opacity-50"
+                        : "cursor-pointer"
+                    }`}
                     style={{
                       WebkitAppearance: "slider-vertical",
                       background: `linear-gradient(to top, #ec4899 0%, #ec4899 ${track.volume}%, #374151 ${track.volume}%, #374151 100%)`,
