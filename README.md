@@ -5,5 +5,5 @@
 - [ ] Loading (tracks, ruler)
 - [ ] Upload spinner
 - [ ] Start && End marker pixel perfect
-- [ ] Mute logo on volumn control
+- [x] Mute logo on volumn control
 - [ ] Change color theme

@@ -808,7 +808,7 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
                   <button
                     onClick={() => toggleMute(index)}
                     className={`px-2 py-1 text-xs rounded font-semibold transition-colors ${
-                      track.muted
+                      track.muted || track.volume === 0
                         ? "bg-red-500 text-white"
                         : tracks.some((t) => t.solo)
                         ? "bg-gray-800 text-gray-600 hover:bg-gray-700"
@@ -821,7 +821,10 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
 
                 {/* Volume Control - Vertical Layout */}
                 <div className="flex flex-col items-center gap-1 h-20">
-                  <div>
+                  <div
+                    onClick={() => toggleMute(index)}
+                    className="cursor-pointer"
+                  >
                     {track.muted || track.volume === 0 ? (
                       <VolumeX className="w-4 h-4 text-gray-400" />
                     ) : (
