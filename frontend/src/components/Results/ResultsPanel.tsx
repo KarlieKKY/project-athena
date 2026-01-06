@@ -37,6 +37,9 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
   } | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectionStart, setSelectionStart] = useState<number | null>(null);
+  const [isDraggingMarker, setIsDraggingMarker] = useState<
+    "start" | "end" | null
+  >(null);
 
   if (!result.data) return null;
 
@@ -309,6 +312,9 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
   };
 
   const handleRulerMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Don't start new selection if dragging a marker
+    if (isDraggingMarker) return;
+
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const clickPosition = x / rect.width;
@@ -320,22 +326,44 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
   };
 
   const handleRulerMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isSelecting || selectionStart === null) return;
-
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const clickPosition = Math.max(0, Math.min(1, x / rect.width));
     const time = clickPosition * duration;
 
-    const start = Math.min(selectionStart, time);
-    const end = Math.max(selectionStart, time);
-
-    setTimeSelection({ start, end });
+    if (isDraggingMarker && timeSelection) {
+      // Dragging a marker to adjust selection
+      if (isDraggingMarker === "start") {
+        setTimeSelection({
+          start: Math.min(time, timeSelection.end),
+          end: timeSelection.end,
+        });
+      } else if (isDraggingMarker === "end") {
+        setTimeSelection({
+          start: timeSelection.start,
+          end: Math.max(time, timeSelection.start),
+        });
+      }
+    } else if (isSelecting && selectionStart !== null) {
+      // Creating new selection
+      const start = Math.min(selectionStart, time);
+      const end = Math.max(selectionStart, time);
+      setTimeSelection({ start, end });
+    }
   };
 
   const handleRulerMouseUp = () => {
     setIsSelecting(false);
     setSelectionStart(null);
+    setIsDraggingMarker(null);
+  };
+
+  const handleMarkerMouseDown = (
+    marker: "start" | "end",
+    e: React.MouseEvent
+  ) => {
+    e.stopPropagation();
+    setIsDraggingMarker(marker);
   };
 
   const handleVolumeChange = (index: number, volume: number) => {
@@ -554,7 +582,7 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
               {timeSelection && duration > 0 && (
                 <>
                   <div
-                    className="absolute top-0 bottom-0 bg-indigo-800 bg-opacity-10 border-l-2 border-r-2 border-pink-500 rounded"
+                    className="absolute top-0 bottom-0 bg-pink-500 bg-opacity-10 border-l-2 border-r-2 border-pink-400 rounded"
                     style={{
                       left: `${(timeSelection.start / duration) * 100}%`,
                       width: `${
@@ -566,12 +594,13 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
 
                   {/* Start marker */}
                   <div
-                    className="absolute flex flex-col items-center pointer-events-none"
+                    className="absolute flex flex-col items-center pointer-events-auto cursor-ew-resize"
                     style={{
                       left: `${(timeSelection.start / duration) * 100}%`,
                       top: "0px",
                       transform: "translateX(-50%)",
                     }}
+                    onMouseDown={(e) => handleMarkerMouseDown("start", e)}
                   >
                     <div className="flex flex-col items-center">
                       <div className="w-3 h-2 bg-pink-500"></div>
@@ -581,12 +610,13 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
 
                   {/* End marker */}
                   <div
-                    className="absolute flex flex-col items-center pointer-events-none"
+                    className="absolute flex flex-col items-center pointer-events-auto cursor-ew-resize"
                     style={{
                       left: `${(timeSelection.end / duration) * 100}%`,
                       top: "0px",
                       transform: "translateX(-50%)",
                     }}
+                    onMouseDown={(e) => handleMarkerMouseDown("end", e)}
                   >
                     <div className="flex flex-col items-center">
                       <div className="w-3 h-2 bg-pink-500"></div>
