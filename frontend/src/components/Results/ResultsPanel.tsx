@@ -40,6 +40,7 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
   const [isDraggingMarker, setIsDraggingMarker] = useState<
     "start" | "end" | null
   >(null);
+  const [isRepeatEnabled, setIsRepeatEnabled] = useState(false);
 
   if (!result.data) return null;
 
@@ -198,18 +199,61 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
           const time = ws.getCurrentTime();
           setCurrentTime(time);
 
-          // If there's a time selection and reached the end, stop playback
+          // If there's a time selection and reached the end
           if (timeSelection && time >= timeSelection.end) {
-            tracks.forEach((track) => {
-              if (track.wavesurfer) {
-                track.wavesurfer.pause();
+            if (isRepeatEnabled) {
+              // Repeat is enabled - seek back to start of selection
+              const seekPosition = timeSelection.start / duration;
+              tracks.forEach((track) => {
+                if (track.wavesurfer) {
+                  track.wavesurfer.seekTo(seekPosition);
+                }
+              });
+              if (timelineWavesurfer) {
+                timelineWavesurfer.seekTo(seekPosition);
               }
-            });
-            if (timelineWavesurfer) {
-              timelineWavesurfer.pause();
+              setCurrentTime(timeSelection.start);
+            } else {
+              // Repeat is disabled - stop playback
+              tracks.forEach((track) => {
+                if (track.wavesurfer) {
+                  track.wavesurfer.pause();
+                }
+              });
+              if (timelineWavesurfer) {
+                timelineWavesurfer.pause();
+              }
+              setIsPlaying(false);
+              return;
             }
-            setIsPlaying(false);
-            return;
+          }
+
+          // If no selection and reached the end of the song
+          if (!timeSelection && time >= duration - 0.1) {
+            if (isRepeatEnabled) {
+              // Repeat is enabled - seek back to start
+              tracks.forEach((track) => {
+                if (track.wavesurfer) {
+                  track.wavesurfer.seekTo(0);
+                }
+              });
+              if (timelineWavesurfer) {
+                timelineWavesurfer.seekTo(0);
+              }
+              setCurrentTime(0);
+            } else {
+              // Repeat is disabled - stop playback
+              tracks.forEach((track) => {
+                if (track.wavesurfer) {
+                  track.wavesurfer.pause();
+                }
+              });
+              if (timelineWavesurfer) {
+                timelineWavesurfer.pause();
+              }
+              setIsPlaying(false);
+              return;
+            }
           }
         }
         animationFrameRef.current = requestAnimationFrame(updateTime);
@@ -222,7 +266,14 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [isPlaying, tracks, duration, timeSelection, timelineWavesurfer]);
+  }, [
+    isPlaying,
+    tracks,
+    duration,
+    timeSelection,
+    timelineWavesurfer,
+    isRepeatEnabled,
+  ]);
 
   const togglePlay = () => {
     // Check if we have a time selection
@@ -554,19 +605,45 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
       {/* Timeline Section with Waveform */}
       <div className="mb-6 bg-gray-900 rounded-lg border border-gray-800 p-4">
         <div className="flex items-center gap-3">
-          <button
-            onClick={togglePlay}
-            className="w-10 h-10 rounded-full bg-gradient-to-r from-pink-500 to-purple-500 flex items-center justify-center hover:opacity-80 transition-opacity flex-shrink-0"
-          >
-            {isPlaying ? (
-              <Pause className="w-5 h-5 text-white" fill="white" />
-            ) : (
-              <Play className="w-5 h-5 text-white ml-0.5" fill="white" />
-            )}
-          </button>
+          <div className="flex flex-col gap-2 flex-shrink-0">
+            <button
+              onClick={togglePlay}
+              className="w-10 h-10 rounded-full bg-gradient-to-r from-pink-500 to-purple-500 flex items-center justify-center hover:opacity-80 transition-opacity"
+            >
+              {isPlaying ? (
+                <Pause className="w-5 h-5 text-white" fill="white" />
+              ) : (
+                <Play className="w-5 h-5 text-white ml-0.5" fill="white" />
+              )}
+            </button>
+
+            <button
+              onClick={() => setIsRepeatEnabled(!isRepeatEnabled)}
+              className={`relative w-12 h-6 rounded-full transition-colors ${
+                isRepeatEnabled
+                  ? "bg-gradient-to-r from-pink-500 to-purple-500"
+                  : "bg-gray-600"
+              }`}
+            >
+              <div
+                className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                  isRepeatEnabled ? "right-0.5" : "left-0.5"
+                }`}
+              />
+              <span
+                className={`absolute text-[8px] font-semibold ${
+                  isRepeatEnabled
+                    ? "left-1 text-white"
+                    : "right-1 text-gray-400"
+                }`}
+              >
+                {isRepeatEnabled ? "Repeat" : "OFF"}
+              </span>
+            </button>
+          </div>
 
           {/* Add spacing to match stem track layout */}
-          <div className="flex-shrink-0" style={{ width: "18px" }}></div>
+          <div className="flex-shrink-0" style={{ width: "12px" }}></div>
 
           <div className="flex-1">
             {/* Time Ruler */}

@@ -1,6 +1,6 @@
 ## To-Do
 
-- [ ] Repeat playback btn
+- [x] Repeat playback btn
 - [ ] Clear selection area when switch to other song
 - [ ] Loading (tracks, ruler)
 - [ ] Upload spinner
