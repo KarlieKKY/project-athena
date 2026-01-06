@@ -443,14 +443,17 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
     setTracks((prevTracks) => {
       const newTracks = prevTracks.map((track, i) => {
         if (i === index) {
-          // For the clicked track, toggle mute and clear solo if we're muting
+          // For the clicked track, toggle mute
           return {
             ...track,
             muted: !track.muted,
-            solo: track.muted ? track.solo : false, // Only clear solo if currently unmuted (about to be muted)
           };
         }
-        return track;
+        // Clear solo from all tracks when any mute is clicked
+        return {
+          ...track,
+          solo: false,
+        };
       });
 
       const hasSolo = newTracks.some((t) => t.solo);
