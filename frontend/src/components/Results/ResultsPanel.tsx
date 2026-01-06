@@ -70,6 +70,12 @@ const ResultsPanel = ({ result }: ResultsPanelProps) => {
     setDuration(0);
     setIsInitialized(false);
 
+    // Clear time selection
+    setTimeSelection(null);
+    setIsSelecting(false);
+    setSelectionStart(null);
+    setIsDraggingMarker(null);
+
     const newTracks: StemTrack[] = stems.map((filename) => {
       const stemName =
         filename
