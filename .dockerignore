@@ -1,0 +1,72 @@
+# Node modules
+**/node_modules
+**/npm-debug.log
+**/package-lock.json
+**/.npm
+
+# Python
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.Python
+**/.venv
+**/venv
+**/env
+**/*.egg-info
+**/.pytest_cache
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*.sublime-*
+
+# OS
+.DS_Store
+Thumbs.db
+*.tmp
+
+# Build outputs
+**/dist
+**/build
+**/.next
+**/out
+
+# Environment
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Logs
+**/logs
+**/*.log
+
+# Testing
+**/coverage
+**/.coverage
+
+# Audio/Media files (if you don't want to include in container)
+**/*.mp3
+**/*.wav
+**/*.flac
+**/*.m4a
+
+# Documentation
+*.md
+LICENSE
+
+# User uploads/outputs (don't copy into image, use volumes)
+backend/uploads/
+backend/outputs/
